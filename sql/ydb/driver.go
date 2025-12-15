@@ -1,0 +1,296 @@
+// Copyright 2021-present The Atlas Authors. All rights reserved.
+// This source code is licensed under the Apache 2.0 license found
+// in the LICENSE file in the root directory of this source tree.
+
+//go:build !ent
+
+package ydb
+
+import (
+	"context"
+	"database/sql"
+	"fmt"
+	"net/url"
+	"time"
+
+	"ariga.io/atlas/sql/internal/sqlx"
+	"ariga.io/atlas/sql/migrate"
+	"ariga.io/atlas/sql/schema"
+	"ariga.io/atlas/sql/sqlclient"
+	ydbSdk "github.com/ydb-platform/ydb-go-sdk/v3"
+)
+
+type (
+	// Driver represents a YDB driver for introspecting database schemas,
+	// generating diff between schema elements and apply migrations changes.
+	Driver struct {
+		*conn
+		schema.Differ
+		schema.Inspector
+		migrate.PlanApplier
+	}
+
+	// conn represents a database connection and its information.
+	conn struct {
+		schema.ExecQuerier
+		// The database/path prefix for tables  (e.g., "/local")
+		database string
+		// Version of YDB server
+		version string
+	}
+)
+
+var _ interface {
+	migrate.StmtScanner
+	schema.TypeParseFormatter
+} = (*Driver)(nil)
+
+// DriverName holds the name used for registration.
+const DriverName = "ydb"
+
+func init() {
+	sqlclient.Register(
+		DriverName,
+		sqlclient.OpenerFunc(opener),
+		sqlclient.RegisterDriverOpener(Open),
+		sqlclient.RegisterURLParser(parser{}),
+	)
+}
+
+func opener(ctx context.Context, dsn *url.URL) (*sqlclient.Client, error) {
+	ur := parser{}.ParseURL(dsn)
+
+	nativeDriver, err := ydbSdk.Open(ctx, ur.DSN)
+	if err != nil {
+		return nil, err
+	}
+
+	conn, err := ydbSdk.Connector(
+		nativeDriver,
+		ydbSdk.WithAutoDeclare(),
+		ydbSdk.WithTablePathPrefix(nativeDriver.Name()),
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	sqlDb := sql.OpenDB(conn)
+	if err != nil {
+		return nil, err
+	}
+
+	drv, err := Open(sqlDb)
+	if err != nil {
+		if cerr := sqlDb.Close(); cerr != nil {
+			err = fmt.Errorf("%w: %v", err, cerr)
+		}
+		return nil, err
+	}
+
+	if d, ok := drv.(*Driver); ok {
+		d.database = ur.Schema
+	}
+	
+	return &sqlclient.Client{
+		Name:   DriverName,
+		DB:     sqlDb,
+		URL:    ur,
+		Driver: drv,
+	}, nil
+}
+
+// Open opens a new YDB driver.
+func Open(db schema.ExecQuerier) (migrate.Driver, error) {
+	c := &conn{ExecQuerier: db}
+	// Query YDB version
+	rows, err := db.QueryContext(context.Background(), "SELECT version()")
+	if err != nil {
+		// If version query fails, continue without version info
+		c.version = "unknown"
+	} else {
+		var ver sql.NullString
+		if err := sqlx.ScanOne(rows, &ver); err != nil {
+			c.version = "unknown"
+		} else {
+			c.version = ver.String
+		}
+	}
+	return &Driver{
+		conn:        c,
+		Differ:      &sqlx.Diff{DiffDriver: &diff{c}},
+		Inspector:   &inspect{c},
+		PlanApplier: &planApply{c},
+	}, nil
+}
+
+// NormalizeRealm returns the normal representation of the given database.
+func (d *Driver) NormalizeRealm(ctx context.Context, r *schema.Realm) (*schema.Realm, error) {
+	return (&sqlx.DevDriver{Driver: d}).NormalizeRealm(ctx, r)
+}
+
+// NormalizeSchema returns the normal representation of the given database.
+func (d *Driver) NormalizeSchema(ctx context.Context, s *schema.Schema) (*schema.Schema, error) {
+	return (&sqlx.DevDriver{Driver: d}).NormalizeSchema(ctx, s)
+}
+
+// Version returns the version of the connected database.
+func (d *Driver) Version() string {
+	return d.conn.version
+}
+
+// FormatType converts schema type to its column form in the database.
+func (*Driver) FormatType(t schema.Type) (string, error) {
+	return FormatType(t)
+}
+
+// ParseType returns the schema.Type value represented by the given string.
+func (*Driver) ParseType(s string) (schema.Type, error) {
+	return ParseType(s)
+}
+
+// StmtBuilder is a helper method used to build statements with YDB formatting.
+func (*Driver) StmtBuilder(opts migrate.PlanOptions) *sqlx.Builder {
+	return &sqlx.Builder{
+		QuoteOpening: '`',
+		QuoteClosing: '`',
+		Schema:       opts.SchemaQualifier,
+		Indent:       opts.Indent,
+	}
+}
+
+// ScanStmts implements migrate.StmtScanner.
+func (*Driver) ScanStmts(input string) ([]*migrate.Stmt, error) {
+	return (&migrate.Scanner{
+		ScannerOptions: migrate.ScannerOptions{
+			MatchBegin: false,
+		},
+	}).Scan(input)
+}
+
+// Lock implements the schema.Locker interface.
+// YDB doesn't support advisory locks, so this is a no-op.
+func (d *Driver) Lock(_ context.Context, _ string, _ time.Duration) (schema.UnlockFunc, error) {
+	// YDB doesn't support advisory locks, return a no-op unlock function
+	return func() error { return nil }, nil
+}
+
+// Snapshot implements migrate.Snapshoter.
+func (d *Driver) Snapshot(ctx context.Context) (migrate.RestoreFunc, error) {
+	if d.database != "" {
+		s, err := d.InspectSchema(ctx, d.database, nil)
+		if err != nil {
+			return nil, err
+		}
+		if len(s.Tables) > 0 {
+			return nil, &migrate.NotCleanError{
+				State:  schema.NewRealm(s),
+				Reason: fmt.Sprintf("found table %q in connected schema", s.Tables[0].Name),
+			}
+		}
+		return d.SchemaRestoreFunc(s), nil
+	}
+	realm, err := d.InspectRealm(ctx, nil)
+	if err != nil {
+		return nil, err
+	}
+	if len(realm.Schemas) > 0 && len(realm.Schemas[0].Tables) > 0 {
+		return nil, &migrate.NotCleanError{
+			State:  realm,
+			Reason: fmt.Sprintf("found table %q in schema %q", realm.Schemas[0].Tables[0].Name, realm.Schemas[0].Name),
+		}
+	}
+	return d.RealmRestoreFunc(realm), nil
+}
+
+// SchemaRestoreFunc returns a function that restores the given schema to its desired state.
+func (d *Driver) SchemaRestoreFunc(desired *schema.Schema) migrate.RestoreFunc {
+	return func(ctx context.Context) error {
+		current, err := d.InspectSchema(ctx, desired.Name, nil)
+		if err != nil {
+			return err
+		}
+		changes, err := d.SchemaDiff(current, desired)
+		if err != nil {
+			return err
+		}
+		return d.ApplyChanges(ctx, changes)
+	}
+}
+
+// RealmRestoreFunc returns a function that restores the given realm to its desired state.
+func (d *Driver) RealmRestoreFunc(desired *schema.Realm) migrate.RestoreFunc {
+	return func(ctx context.Context) error {
+		current, err := d.InspectRealm(ctx, nil)
+		if err != nil {
+			return err
+		}
+		changes, err := d.RealmDiff(current, desired)
+		if err != nil {
+			return err
+		}
+		return d.ApplyChanges(ctx, changes)
+	}
+}
+
+// CheckClean implements migrate.CleanChecker.
+func (d *Driver) CheckClean(ctx context.Context, revT *migrate.TableIdent) error {
+	if revT == nil {
+		revT = &migrate.TableIdent{}
+	}
+	if d.database != "" {
+		switch s, err := d.InspectSchema(ctx, d.database, nil); {
+		case err != nil:
+			return err
+		case len(s.Tables) == 0:
+			return nil
+		case (revT.Schema == "" || s.Name == revT.Schema) && len(s.Tables) == 1 && s.Tables[0].Name == revT.Name:
+			return nil
+		default:
+			return &migrate.NotCleanError{
+				State:  schema.NewRealm(s),
+				Reason: fmt.Sprintf("found table %q in schema %q", s.Tables[0].Name, s.Name),
+			}
+		}
+	}
+	r, err := d.InspectRealm(ctx, nil)
+	if err != nil {
+		return err
+	}
+	for _, s := range r.Schemas {
+		switch {
+		case len(s.Tables) == 0:
+			continue
+		case s.Name != revT.Schema || len(s.Tables) > 1:
+			return &migrate.NotCleanError{
+				State:  r,
+				Reason: fmt.Sprintf("found multiple tables in schema %q", s.Name),
+			}
+		case s.Tables[0].Name != revT.Name:
+			return &migrate.NotCleanError{
+				State:  r,
+				Reason: fmt.Sprintf("found table %q in schema %q", s.Tables[0].Name, s.Name),
+			}
+		}
+	}
+	return nil
+}
+
+type parser struct{}
+
+// ParseURL implements the sqlclient.URLParser interface.
+func (parser) ParseURL(u *url.URL) *sqlclient.URL {
+	// YDB connection string format: grpc://localhost:2136/local
+	// The path part becomes the database/schema
+	return &sqlclient.URL{
+		URL:    u,
+		DSN:    u.String(),
+		Schema: u.Path, // e.g., "/local"
+	}
+}
+
+// ChangeSchema implements the sqlclient.SchemaChanger interface.
+func (parser) ChangeSchema(u *url.URL, s string) *url.URL {
+	nu := *u
+	nu.Path = s
+	return &nu
+}
