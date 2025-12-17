@@ -33,7 +33,14 @@ type (
 	// conn represents a database connection and its information.
 	conn struct {
 		schema.ExecQuerier
-		// The database/path prefix for tables  (e.g., "/local")
+
+		// We use native ydb driver in order to introspect database
+		nativeDriver *ydbSdk.Driver
+
+		// YDB doesn't have concept of schema in the same meaning as in Postgres for example.
+		// Instead, database objects are organized using "directores"
+		// and it is possible to have multiple databases in a single distributed cluster.
+		// So we just store the database path prefix (e.g., "/local")
 		database string
 		// Version of YDB server
 		version string
@@ -52,7 +59,6 @@ func init() {
 	sqlclient.Register(
 		DriverName,
 		sqlclient.OpenerFunc(opener),
-		sqlclient.RegisterDriverOpener(Open),
 		sqlclient.RegisterURLParser(parser{}),
 	)
 }
@@ -74,14 +80,14 @@ func opener(ctx context.Context, dsn *url.URL) (*sqlclient.Client, error) {
 		return nil, err
 	}
 
-	sqlDb := sql.OpenDB(conn)
+	sqlDriver := sql.OpenDB(conn)
 	if err != nil {
 		return nil, err
 	}
 
-	drv, err := Open(sqlDb)
+	drv, err := open(nativeDriver, sqlDriver)
 	if err != nil {
-		if cerr := sqlDb.Close(); cerr != nil {
+		if cerr := sqlDriver.Close(); cerr != nil {
 			err = fmt.Errorf("%w: %v", err, cerr)
 		}
 		return nil, err
@@ -90,20 +96,23 @@ func opener(ctx context.Context, dsn *url.URL) (*sqlclient.Client, error) {
 	if d, ok := drv.(*Driver); ok {
 		d.database = ur.Schema
 	}
-	
+
 	return &sqlclient.Client{
 		Name:   DriverName,
-		DB:     sqlDb,
+		DB:     sqlDriver,
 		URL:    ur,
 		Driver: drv,
 	}, nil
 }
 
 // Open opens a new YDB driver.
-func Open(db schema.ExecQuerier) (migrate.Driver, error) {
-	c := &conn{ExecQuerier: db}
+func open(nativeDriver *ydbSdk.Driver, sqlDriver *sql.DB) (migrate.Driver, error) {
+	c := &conn{
+		ExecQuerier:  sqlDriver,
+		nativeDriver: nativeDriver,
+	}
 	// Query YDB version
-	rows, err := db.QueryContext(context.Background(), "SELECT version()")
+	rows, err := sqlDriver.QueryContext(context.Background(), "SELECT version()")
 	if err != nil {
 		// If version query fails, continue without version info
 		c.version = "unknown"
