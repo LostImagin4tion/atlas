@@ -142,40 +142,6 @@ func (d *Driver) NormalizeSchema(ctx context.Context, s *schema.Schema) (*schema
 	return (&sqlx.DevDriver{Driver: d}).NormalizeSchema(ctx, s)
 }
 
-// Version returns the version of the connected database.
-func (d *Driver) Version() string {
-	return d.conn.version
-}
-
-// FormatType converts schema type to its column form in the database.
-func (*Driver) FormatType(t schema.Type) (string, error) {
-	return FormatType(t)
-}
-
-// ParseType returns the schema.Type value represented by the given string.
-func (*Driver) ParseType(s string) (schema.Type, error) {
-	return ParseType(s)
-}
-
-// StmtBuilder is a helper method used to build statements with YDB formatting.
-func (*Driver) StmtBuilder(opts migrate.PlanOptions) *sqlx.Builder {
-	return &sqlx.Builder{
-		QuoteOpening: '`',
-		QuoteClosing: '`',
-		Schema:       opts.SchemaQualifier,
-		Indent:       opts.Indent,
-	}
-}
-
-// ScanStmts implements migrate.StmtScanner.
-func (*Driver) ScanStmts(input string) ([]*migrate.Stmt, error) {
-	return (&migrate.Scanner{
-		ScannerOptions: migrate.ScannerOptions{
-			MatchBegin: false,
-		},
-	}).Scan(input)
-}
-
 // Lock implements the schema.Locker interface.
 // YDB doesn't support advisory locks, so this is a no-op.
 func (d *Driver) Lock(_ context.Context, _ string, _ time.Duration) (schema.UnlockFunc, error) {
@@ -282,6 +248,40 @@ func (d *Driver) CheckClean(ctx context.Context, revT *migrate.TableIdent) error
 		}
 	}
 	return nil
+}
+
+// Version returns the version of the connected database.
+func (d *Driver) Version() string {
+	return d.conn.version
+}
+
+// FormatType converts schema type to its column form in the database.
+func (*Driver) FormatType(t schema.Type) (string, error) {
+	return FormatType(t)
+}
+
+// ParseType returns the schema.Type value represented by the given string.
+func (*Driver) ParseType(s string) (schema.Type, error) {
+	return ParseType(s)
+}
+
+// StmtBuilder is a helper method used to build statements with YDB formatting.
+func (*Driver) StmtBuilder(opts migrate.PlanOptions) *sqlx.Builder {
+	return &sqlx.Builder{
+		QuoteOpening: '`',
+		QuoteClosing: '`',
+		Schema:       opts.SchemaQualifier,
+		Indent:       opts.Indent,
+	}
+}
+
+// ScanStmts implements migrate.StmtScanner.
+func (*Driver) ScanStmts(input string) ([]*migrate.Stmt, error) {
+	return (&migrate.Scanner{
+		ScannerOptions: migrate.ScannerOptions{
+			MatchBegin: false,
+		},
+	}).Scan(input)
 }
 
 type parser struct{}
