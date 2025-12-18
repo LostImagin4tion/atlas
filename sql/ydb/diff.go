@@ -14,7 +14,7 @@ import (
 	"ariga.io/atlas/sql/schema"
 )
 
-// DefaultDiff provides basic diffing capabilities for YDB dialects.
+// DefaultDiff provides basic diffing capabilities for YDB dialect.
 // Note, it is recommended to call Open, create a new Driver and use its
 // Differ when a database connection is available.
 var DefaultDiff schema.Differ = &sqlx.Diff{DiffDriver: &diff{&conn{ExecQuerier: sqlx.NoRows}}}
@@ -97,7 +97,7 @@ func (d *diff) typeChanged(from, to *schema.Column) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	
+
 	t2, err := FormatType(toT)
 	if err != nil {
 		return false, err

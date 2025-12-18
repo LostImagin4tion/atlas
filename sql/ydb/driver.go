@@ -81,10 +81,6 @@ func opener(ctx context.Context, dsn *url.URL) (*sqlclient.Client, error) {
 	}
 
 	sqlDriver := sql.OpenDB(conn)
-	if err != nil {
-		return nil, err
-	}
-
 	drv, err := open(nativeDriver, sqlDriver)
 	if err != nil {
 		if cerr := sqlDriver.Close(); cerr != nil {
