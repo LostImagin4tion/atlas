@@ -13,7 +13,7 @@ import (
 // YDB primitive type names as defined in YDB documentation.
 // See: https://ydb.tech/docs/en/yql/reference/types/
 const (
-	TypeBool = "Bool"
+	TypeBool = "bool"
 
 	TypeInt8   = "int8"
 	TypeInt16  = "int16"
@@ -60,6 +60,12 @@ const (
 )
 
 type (
+	OptionalType struct {
+		schema.Type
+		T         string
+		InnerType schema.Type
+	}
+
 	SerialType struct {
 		schema.Type
 		T string

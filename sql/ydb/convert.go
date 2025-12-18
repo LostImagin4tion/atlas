@@ -23,6 +23,8 @@ func FormatType(t schema.Type) (string, error) {
 	)
 
 	switch t := t.(type) {
+	case OptionalType:
+		f = t.T
 	case *schema.BoolType:
 		f = TypeBool
 	case *schema.IntegerType:
@@ -147,31 +149,40 @@ func ParseType(typ string) (schema.Type, error) {
 		return nil, err
 	}
 
-	return columnType(colDesc), nil
+	return columnType(colDesc)
 }
 
+// Nullability in YDB/YQL:
+//
+// YQL implements nullable types by wrapping them in Optional<T> containers.
+// However, DDL statements do not support declaring arbitrary container types.
+// Therefore, we assume that nested constructs (e.g. Optional<Optional<T>>) cannot
+// occur when parsing types from DDL schemas.
 type columnDecscriptor struct {
 	strT      string
+	nullable  bool
 	precision int64
 	scale     int64
 	parts     []string
 }
 
 func parseColumn(typ string) (*columnDecscriptor, error) {
-	if len(typ) == 0 {
+	if typ == "" {
 		return nil, errors.New("ydb: unexpected empty column type")
 	}
-	parts := strings.FieldsFunc(typ, func(r rune) bool {
-		return r == '(' || r == ')' || r == ' ' || r == ','
-	})
 
 	var (
 		err     error
-		colDesc = &columnDecscriptor{
-			strT:  strings.ToLower(parts[0]),
-			parts: parts,
-		}
+		colDesc *columnDecscriptor
 	)
+
+	colDesc, typ = parseOptionalType(typ)
+
+	parts := strings.FieldsFunc(typ, func(r rune) bool {
+		return r == '(' || r == ')' || r == ' ' || r == ','
+	})
+	colDesc.strT = strings.ToLower(parts[0])
+	colDesc.parts = parts
 
 	switch colDesc.strT {
 	case TypeDecimal:
@@ -186,6 +197,18 @@ func parseColumn(typ string) (*columnDecscriptor, error) {
 		return nil, err
 	}
 	return colDesc, nil
+}
+
+func parseOptionalType(typ string) (*columnDecscriptor, string) {
+	colDesc := &columnDecscriptor{}
+
+	if strings.HasPrefix(typ, "Optional<") {
+		colDesc.nullable = true
+		typ = strings.TrimPrefix(typ, "Optional<")
+		typ = strings.TrimSuffix(typ, ">")
+	}
+
+	return colDesc, typ
 }
 
 func parseDecimalType(parts []string, colDesc *columnDecscriptor) error {
@@ -209,8 +232,26 @@ func parseDecimalType(parts []string, colDesc *columnDecscriptor) error {
 	return nil
 }
 
-func columnType(colDesc *columnDecscriptor) schema.Type {
+func columnType(colDesc *columnDecscriptor) (schema.Type, error) {
 	var typ schema.Type
+
+	if colDesc.nullable {
+		colDesc.nullable = false
+		innerType, err := columnType(colDesc)
+		if err != nil {
+			return nil, err
+		}
+
+		innerTypeStr, err := FormatType(innerType)
+		if err != nil {
+			return nil, err
+		}
+
+		return &OptionalType{
+			T:         fmt.Sprintf("Optional<%s>", innerTypeStr),
+			InnerType: innerType,
+		}, nil
+	}
 
 	switch strT := colDesc.strT; strT {
 	case TypeBool:
@@ -254,5 +295,5 @@ func columnType(colDesc *columnDecscriptor) schema.Type {
 		typ = &schema.UnsupportedType{T: strT}
 	}
 
-	return typ
+	return typ, nil
 }
