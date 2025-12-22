@@ -134,26 +134,29 @@ type entryWithPath struct {
 // tables queries and populates the tables in the schema.
 func (i *inspect) tables(ctx context.Context, s *schema.Schema, opts *schema.InspectOptions) error {
 	rootPath := s.Name
-	dir, err := i.nativeDriver.Scheme().ListDirectory(ctx, rootPath)
+	rootDir, err := i.nativeDriver.Scheme().ListDirectory(ctx, rootPath)
 	if err != nil {
 		return fmt.Errorf("ydb: failed list directory: %v", err)
 	}
 
-	queue := make([]entryWithPath, 0, len(dir.Children))
-	for _, child := range dir.Children {
+	queue := make([]entryWithPath, 0, len(rootDir.Children))
+	for _, child := range rootDir.Children {
 		queue = append(queue, entryWithPath{
 			Entry:    &child,
 			fullPath: fmt.Sprintf("%s/%s", rootPath, child.Name),
 		})
 	}
 
+	// using BFS to traverse all directories inside database
 	for len(queue) != 0 {
 		currEntry := queue[0]
 		queue = queue[1:]
 
 		switch currEntry.Type {
 		case scheme.EntryTable:
-			shouldAdd := opts == nil || len(opts.Tables) == 0 || slices.Contains(opts.Tables, currEntry.fullPath)
+			shouldAdd := opts == nil ||
+				len(opts.Tables) == 0 ||
+				slices.Contains(opts.Tables, currEntry.fullPath)
 
 			if shouldAdd {
 				t := schema.NewTable(currEntry.fullPath)
@@ -161,7 +164,7 @@ func (i *inspect) tables(ctx context.Context, s *schema.Schema, opts *schema.Ins
 			}
 
 		case scheme.EntryDirectory:
-			dir, err = i.nativeDriver.Scheme().ListDirectory(ctx, currEntry.fullPath)
+			dir, err := i.nativeDriver.Scheme().ListDirectory(ctx, currEntry.fullPath)
 			if err != nil {
 				return fmt.Errorf("ydb: failed list directory: %v", err)
 			}
@@ -194,7 +197,7 @@ func (i *inspect) columns(ctx context.Context, t *schema.Table) error {
 
 		_, nullable := columnType.(OptionalType)
 
-		c := &schema.Column{
+		atlasColumn := &schema.Column{
 			Name: column.Name,
 			Type: &schema.ColumnType{
 				Type: columnType,
@@ -208,7 +211,7 @@ func (i *inspect) columns(ctx context.Context, t *schema.Table) error {
 		// 	c.Default = &schema.RawExpr{X: defaultVal.String}
 		// }
 
-		t.AddColumns(c)
+		t.AddColumns(atlasColumn)
 	}
 
 	return nil
@@ -221,28 +224,30 @@ func (i *inspect) indexes(ctx context.Context, t *schema.Table) error {
 		return fmt.Errorf("ydb: failed describe table: %v", err)
 	}
 
-	var pkParts []*schema.IndexPart
-	for i, keyColumn := range desc.PrimaryKey {
+	// primary key index
+	var primaryKeyParts []*schema.IndexPart
+	for _, keyColumn := range desc.PrimaryKey {
 		column, ok := t.Column(keyColumn)
 		if !ok {
 			return fmt.Errorf("ydb: primary key column %q not found in table %q", keyColumn, t.Name)
 		}
 
-		pkParts = append(pkParts, &schema.IndexPart{
-			SeqNo: i + 1,
+		primaryKeyParts = append(primaryKeyParts, &schema.IndexPart{
+			SeqNo: len(primaryKeyParts) + 1,
 			C:     column,
 		})
 	}
-	if len(pkParts) > 0 {
+	if len(primaryKeyParts) > 0 {
 		pk := &schema.Index{
 			Name:   "PRIMARY",
 			Unique: true,
 			Table:  t,
-			Parts:  pkParts,
+			Parts:  primaryKeyParts,
 		}
 		t.SetPrimaryKey(pk)
 	}
 
+	// secondary indexes
 	for _, idx := range desc.Indexes {
 		atlasIdx := &schema.Index{
 			Name:  idx.Name,

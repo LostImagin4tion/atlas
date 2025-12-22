@@ -25,30 +25,39 @@ var DefaultPlan migrate.PlanApplier = &planApply{conn: &conn{ExecQuerier: sqlx.N
 type planApply struct{ *conn }
 
 // PlanChanges returns a migration plan for the given schema changes.
-func (p *planApply) PlanChanges(ctx context.Context, name string, changes []schema.Change, opts ...migrate.PlanOption) (*migrate.Plan, error) {
-	s := &state{
+func (p *planApply) PlanChanges(
+	ctx context.Context,
+	name string,
+	changes []schema.Change,
+	opts ...migrate.PlanOption,
+) (*migrate.Plan, error) {
+	state := &state{
 		conn: p.conn,
 		Plan: migrate.Plan{
 			Name:          name,
 			Transactional: true,
 		},
 	}
-	for _, o := range opts {
-		o(&s.PlanOptions)
+	for _, opt := range opts {
+		opt(&state.PlanOptions)
 	}
-	if err := s.plan(changes); err != nil {
+	if err := state.plan(changes); err != nil {
 		return nil, err
 	}
-	if err := sqlx.SetReversible(&s.Plan); err != nil {
+	if err := sqlx.SetReversible(&state.Plan); err != nil {
 		return nil, err
 	}
-	return &s.Plan, nil
+	return &state.Plan, nil
 }
 
 // ApplyChanges applies the changes on the database. An error is returned
 // if the driver is unable to produce a plan to do so, or one of the statements
 // is failed or unsupported.
-func (p *planApply) ApplyChanges(ctx context.Context, changes []schema.Change, opts ...migrate.PlanOption) error {
+func (p *planApply) ApplyChanges(
+	ctx context.Context,
+	changes []schema.Change,
+	opts ...migrate.PlanOption,
+) error {
 	return sqlx.ApplyChanges(ctx, changes, p, opts...)
 }
 
@@ -81,42 +90,42 @@ func (s *state) plan(changes []schema.Change) error {
 }
 
 // addTable builds and executes the query for creating a table in a schema.
-func (s *state) addTable(add *schema.AddTable) error {
+func (s *state) addTable(addTable *schema.AddTable) error {
 	var errs []string
 	b := s.Build("CREATE TABLE")
 
-	b.Table(add.T)
+	b.Table(addTable.T)
 	b.WrapIndent(func(b *sqlx.Builder) {
-		b.MapIndent(add.T.Columns, func(i int, b *sqlx.Builder) {
-			if err := s.column(b, add.T.Columns[i]); err != nil {
+		b.MapIndent(addTable.T.Columns, func(i int, b *sqlx.Builder) {
+			if err := s.column(b, addTable.T.Columns[i]); err != nil {
 				errs = append(errs, err.Error())
 			}
 		})
-		if primaryKey := add.T.PrimaryKey; primaryKey != nil {
+		if primaryKey := addTable.T.PrimaryKey; primaryKey != nil {
 			b.Comma().NL().P("PRIMARY KEY")
 			s.indexParts(b, primaryKey.Parts)
 		} else {
 			errs = append(errs, "ydb: primary key is mandatory")
 		}
 		// inline secondary indexes
-		for _, idx := range add.T.Indexes {
+		for _, idx := range addTable.T.Indexes {
 			b.Comma().NL()
 			s.indexDef(b, idx)
 		}
 	})
 
 	if len(errs) > 0 {
-		return fmt.Errorf("create table %q: %s", add.T.Name, strings.Join(errs, ", "))
+		return fmt.Errorf("create table %q: %s", addTable.T.Name, strings.Join(errs, ", "))
 	}
 
 	reverse := s.Build("DROP TABLE").
-		Table(add.T).
+		Table(addTable.T).
 		String()
 
 	s.append(&migrate.Change{
 		Cmd:     b.String(),
-		Source:  add,
-		Comment: fmt.Sprintf("create %q table", add.T.Name),
+		Source:  addTable,
+		Comment: fmt.Sprintf("create %q table", addTable.T.Name),
 		Reverse: reverse,
 	})
 	return nil
@@ -130,12 +139,12 @@ func (s *state) indexDef(b *sqlx.Builder, idx *schema.Index) {
 
 // dropTable builds and executes the query for dropping a table from a schema.
 func (s *state) dropTable(drop *schema.DropTable) error {
-	rs := &state{
+	reverseState := &state{
 		conn:        s.conn,
 		PlanOptions: s.PlanOptions,
 	}
 
-	if err := rs.addTable(&schema.AddTable{T: drop.T}); err != nil {
+	if err := reverseState.addTable(&schema.AddTable{T: drop.T}); err != nil {
 		return fmt.Errorf("calculate reverse for drop table %q: %w", drop.T.Name, err)
 	}
 
@@ -147,8 +156,8 @@ func (s *state) dropTable(drop *schema.DropTable) error {
 
 	// The reverse of 'DROP TABLE' might be a multi-statement operation
 	reverse := func() any {
-		cmd := make([]string, len(rs.Changes))
-		for i, c := range rs.Changes {
+		cmd := make([]string, len(reverseState.Changes))
+		for i, c := range reverseState.Changes {
 			cmd[i] = c.Cmd
 		}
 		if len(cmd) == 1 {

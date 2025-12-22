@@ -16,47 +16,47 @@ import (
 )
 
 // FormatType converts a schema.Type to its YDB string representation.
-func FormatType(t schema.Type) (string, error) {
+func FormatType(typ schema.Type) (string, error) {
 	var (
-		f   string
-		err error
+		formatted string
+		err       error
 	)
 
-	switch t := t.(type) {
+	switch t := typ.(type) {
 	case OptionalType:
-		f = t.T
+		formatted = t.T
 	case *schema.BoolType:
-		f = TypeBool
+		formatted = TypeBool
 	case *schema.IntegerType:
-		f, err = formatIntegerType(t)
+		formatted, err = formatIntegerType(t)
 	case *schema.FloatType:
-		f, err = formatFloatType(t)
+		formatted, err = formatFloatType(t)
 	case *schema.DecimalType:
-		f, err = formatDecimalType(t)
+		formatted, err = formatDecimalType(t)
 	case *SerialType:
-		f = t.T
+		formatted = t.T
 	case *schema.BinaryType:
-		f = TypeString
+		formatted = TypeString
 	case *schema.StringType:
-		f = TypeUtf8
+		formatted = TypeUtf8
 	case *schema.JSONType:
-		f, err = formatJSONType(t)
+		formatted, err = formatJSONType(t)
 	case YsonType:
-		f = t.T
+		formatted = t.T
 	case *schema.UUIDType:
-		f = TypeUuid
+		formatted = TypeUuid
 	case *schema.TimeType:
-		f, err = formatTimeType(t)
+		formatted, err = formatTimeType(t)
 	case *schema.UnsupportedType:
 		err = fmt.Errorf("ydb: unsupported type: %q", t.T)
 	default:
-		err = fmt.Errorf("ydb: invalid schema type: %T", t)
+		err = fmt.Errorf("ydb: unknown schema type: %T", t)
 	}
 
 	if err != nil {
 		return "", err
 	}
-	return f, nil
+	return formatted, nil
 }
 
 func formatIntegerType(t *schema.IntegerType) (string, error) {
@@ -257,13 +257,26 @@ func columnType(colDesc *columnDecscriptor) (schema.Type, error) {
 	case TypeBool:
 		typ = &schema.BoolType{T: strT}
 	case TypeInt8, TypeInt16, TypeInt32, TypeInt64:
-		typ = &schema.IntegerType{T: strT, Unsigned: false}
+		typ = &schema.IntegerType{
+			T:        strT,
+			Unsigned: false,
+		}
 	case TypeUint8, TypeUint16, TypeUint32, TypeUint64:
-		typ = &schema.IntegerType{T: strT, Unsigned: true}
+		typ = &schema.IntegerType{
+			T:        strT,
+			Unsigned: true,
+		}
 	case TypeFloat, TypeDouble:
-		typ = &schema.FloatType{T: strT, Precision: int(colDesc.precision)}
+		typ = &schema.FloatType{
+			T:         strT,
+			Precision: int(colDesc.precision),
+		}
 	case TypeDecimal:
-		typ = &schema.DecimalType{T: strT, Precision: int(colDesc.precision), Scale: int(colDesc.scale)}
+		typ = &schema.DecimalType{
+			T:         strT,
+			Precision: int(colDesc.precision),
+			Scale:     int(colDesc.scale),
+		}
 	case TypeSmallSerial, TypeSerial2, TypeSerial, TypeSerial4, TypeSerial8, TypeBigSerial:
 		typ = &SerialType{T: strT}
 	case TypeString:

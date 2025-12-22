@@ -44,7 +44,11 @@ func (*diff) SchemaObjectDiff(_, _ *schema.Schema, _ *schema.DiffOptions) ([]sch
 }
 
 // TableAttrDiff returns a changeset for migrating table attributes from one state to the other.
-func (d *diff) TableAttrDiff(from, to *schema.Table, opts *schema.DiffOptions) ([]schema.Change, error) {
+func (d *diff) TableAttrDiff(
+	from *schema.Table,
+	to *schema.Table,
+	opts *schema.DiffOptions,
+) ([]schema.Change, error) {
 	return sqlx.CheckDiffMode(from, to, opts.Mode), nil
 }
 
@@ -54,7 +58,12 @@ func (*diff) ViewAttrChanges(_, _ *schema.View) []schema.Change {
 }
 
 // ColumnChange returns the schema changes (if any) for migrating one column to the other.
-func (d *diff) ColumnChange(_ *schema.Table, from, to *schema.Column, _ *schema.DiffOptions) (schema.Change, error) {
+func (d *diff) ColumnChange(
+	_ *schema.Table,
+	from *schema.Column,
+	to *schema.Column,
+	_ *schema.DiffOptions,
+) (schema.Change, error) {
 	var change schema.ChangeKind
 	if from.Type.Null != to.Type.Null {
 		change |= schema.ChangeNull
@@ -84,35 +93,36 @@ func (d *diff) ColumnChange(_ *schema.Table, from, to *schema.Column, _ *schema.
 }
 
 // typeChanged reports if the column type was changed.
-func (d *diff) typeChanged(from, to *schema.Column) (bool, error) {
-	fromT, toT := from.Type.Type, to.Type.Type
-	if fromT == nil || toT == nil {
+func (d *diff) typeChanged(from *schema.Column, to *schema.Column) (bool, error) {
+	fromType, toType := from.Type.Type, to.Type.Type
+	if fromType == nil || toType == nil {
 		return false, fmt.Errorf("ydb: missing type information for column %q", from.Name)
 	}
-	if reflect.TypeOf(fromT) != reflect.TypeOf(toT) {
+
+	if reflect.TypeOf(fromType) != reflect.TypeOf(toType) {
 		return true, nil
 	}
 
-	t1, err := FormatType(fromT)
+	type1, err := FormatType(fromType)
 	if err != nil {
 		return false, err
 	}
 
-	t2, err := FormatType(toT)
+	type2, err := FormatType(toType)
 	if err != nil {
 		return false, err
 	}
-	return t1 != t2, nil
+	return type1 != type2, nil
 }
 
 // defaultChanged reports if the default value of a column was changed.
 func (d *diff) defaultChanged(from, to *schema.Column) bool {
-	d1, ok1 := sqlx.DefaultValue(from)
-	d2, ok2 := sqlx.DefaultValue(to)
+	default1, ok1 := sqlx.DefaultValue(from)
+	default2, ok2 := sqlx.DefaultValue(to)
 	if ok1 != ok2 {
 		return true
 	}
-	return d1 != d2
+	return default1 != default2
 }
 
 // IndexAttrChanged reports if the index attributes were changed.

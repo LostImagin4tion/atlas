@@ -64,9 +64,9 @@ func init() {
 }
 
 func opener(ctx context.Context, dsn *url.URL) (*sqlclient.Client, error) {
-	ur := parser{}.ParseURL(dsn)
+	parser := parser{}.ParseURL(dsn)
 
-	nativeDriver, err := ydbSdk.Open(ctx, ur.DSN)
+	nativeDriver, err := ydbSdk.Open(ctx, parser.DSN)
 	if err != nil {
 		return nil, err
 	}
@@ -90,13 +90,13 @@ func opener(ctx context.Context, dsn *url.URL) (*sqlclient.Client, error) {
 	}
 
 	if d, ok := drv.(*Driver); ok {
-		d.database = ur.Schema
+		d.database = parser.Schema
 	}
 
 	return &sqlclient.Client{
 		Name:   DriverName,
 		DB:     sqlDriver,
-		URL:    ur,
+		URL:    parser,
 		Driver: drv,
 	}, nil
 }
@@ -107,19 +107,18 @@ func open(nativeDriver *ydbSdk.Driver, sqlDriver *sql.DB) (migrate.Driver, error
 		ExecQuerier:  sqlDriver,
 		nativeDriver: nativeDriver,
 	}
-	// Query YDB version
+
 	rows, err := sqlDriver.QueryContext(context.Background(), "SELECT version()")
 	if err != nil {
-		// If version query fails, continue without version info
-		c.version = "unknown"
-	} else {
-		var ver sql.NullString
-		if err := sqlx.ScanOne(rows, &ver); err != nil {
-			c.version = "unknown"
-		} else {
-			c.version = ver.String
-		}
+		return nil, fmt.Errorf("ydb: failed to query version: %w", err)
 	}
+
+	var version sql.NullString
+	if err := sqlx.ScanOne(rows, &version); err != nil {
+		return nil, fmt.Errorf("ydb: failed to scan version: %w", err)
+	}
+	c.version = version.String
+
 	return &Driver{
 		conn:        c,
 		Differ:      &sqlx.Diff{DiffDriver: &diff{c}},
@@ -141,35 +140,39 @@ func (d *Driver) NormalizeSchema(ctx context.Context, s *schema.Schema) (*schema
 // Lock implements the schema.Locker interface.
 // YDB doesn't support advisory locks, so this is a no-op.
 func (d *Driver) Lock(_ context.Context, _ string, _ time.Duration) (schema.UnlockFunc, error) {
-	// YDB doesn't support advisory locks, return a no-op unlock function
 	return func() error { return nil }, nil
 }
 
 // Snapshot implements migrate.Snapshoter.
 func (d *Driver) Snapshot(ctx context.Context) (migrate.RestoreFunc, error) {
 	if d.database != "" {
-		s, err := d.InspectSchema(ctx, d.database, nil)
+		dbSchema, err := d.InspectSchema(ctx, d.database, nil)
 		if err != nil {
 			return nil, err
 		}
-		if len(s.Tables) > 0 {
+
+		if len(dbSchema.Tables) > 0 {
 			return nil, &migrate.NotCleanError{
-				State:  schema.NewRealm(s),
-				Reason: fmt.Sprintf("found table %q in connected schema", s.Tables[0].Name),
+				State:  schema.NewRealm(dbSchema),
+				Reason: fmt.Sprintf("found table %q in connected schema", dbSchema.Tables[0].Name),
 			}
 		}
-		return d.SchemaRestoreFunc(s), nil
+
+		return d.SchemaRestoreFunc(dbSchema), nil
 	}
+
 	realm, err := d.InspectRealm(ctx, nil)
 	if err != nil {
 		return nil, err
 	}
+
 	if len(realm.Schemas) > 0 && len(realm.Schemas[0].Tables) > 0 {
 		return nil, &migrate.NotCleanError{
 			State:  realm,
 			Reason: fmt.Sprintf("found table %q in schema %q", realm.Schemas[0].Tables[0].Name, realm.Schemas[0].Name),
 		}
 	}
+
 	return d.RealmRestoreFunc(realm), nil
 }
 
@@ -180,10 +183,12 @@ func (d *Driver) SchemaRestoreFunc(desired *schema.Schema) migrate.RestoreFunc {
 		if err != nil {
 			return err
 		}
+
 		changes, err := d.SchemaDiff(current, desired)
 		if err != nil {
 			return err
 		}
+
 		return d.ApplyChanges(ctx, changes)
 	}
 }
@@ -195,10 +200,12 @@ func (d *Driver) RealmRestoreFunc(desired *schema.Realm) migrate.RestoreFunc {
 		if err != nil {
 			return err
 		}
+
 		changes, err := d.RealmDiff(current, desired)
 		if err != nil {
 			return err
 		}
+
 		return d.ApplyChanges(ctx, changes)
 	}
 }
@@ -208,6 +215,7 @@ func (d *Driver) CheckClean(ctx context.Context, revT *migrate.TableIdent) error
 	if revT == nil {
 		revT = &migrate.TableIdent{}
 	}
+
 	if d.database != "" {
 		switch s, err := d.InspectSchema(ctx, d.database, nil); {
 		case err != nil:
@@ -223,22 +231,24 @@ func (d *Driver) CheckClean(ctx context.Context, revT *migrate.TableIdent) error
 			}
 		}
 	}
-	r, err := d.InspectRealm(ctx, nil)
+
+	realm, err := d.InspectRealm(ctx, nil)
 	if err != nil {
 		return err
 	}
-	for _, s := range r.Schemas {
+
+	for _, s := range realm.Schemas {
 		switch {
 		case len(s.Tables) == 0:
 			continue
 		case s.Name != revT.Schema || len(s.Tables) > 1:
 			return &migrate.NotCleanError{
-				State:  r,
+				State:  realm,
 				Reason: fmt.Sprintf("found multiple tables in schema %q", s.Name),
 			}
 		case s.Tables[0].Name != revT.Name:
 			return &migrate.NotCleanError{
-				State:  r,
+				State:  realm,
 				Reason: fmt.Sprintf("found table %q in schema %q", s.Tables[0].Name, s.Name),
 			}
 		}
@@ -283,19 +293,19 @@ func (*Driver) ScanStmts(input string) ([]*migrate.Stmt, error) {
 type parser struct{}
 
 // ParseURL implements the sqlclient.URLParser interface.
-func (parser) ParseURL(u *url.URL) *sqlclient.URL {
+func (parser) ParseURL(url *url.URL) *sqlclient.URL {
 	// YDB connection string format: grpc://localhost:2136/local
 	// The path part becomes the database/schema
 	return &sqlclient.URL{
-		URL:    u,
-		DSN:    u.String(),
-		Schema: u.Path, // e.g., "/local"
+		URL:    url,
+		DSN:    url.String(),
+		Schema: url.Path, // e.g., "/local"
 	}
 }
 
 // ChangeSchema implements the sqlclient.SchemaChanger interface.
-func (parser) ChangeSchema(u *url.URL, s string) *url.URL {
-	nu := *u
-	nu.Path = s
+func (parser) ChangeSchema(url *url.URL, schema string) *url.URL {
+	nu := *url
+	nu.Path = schema
 	return &nu
 }
