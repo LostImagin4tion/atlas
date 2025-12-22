@@ -192,15 +192,18 @@ func (i *inspect) columns(ctx context.Context, t *schema.Table) error {
 			columnType = &schema.UnsupportedType{T: dataType}
 		}
 
+		_, nullable := columnType.(OptionalType)
+
 		c := &schema.Column{
 			Name: column.Name,
 			Type: &schema.ColumnType{
 				Type: columnType,
 				Raw:  dataType,
-				// Null: nullable == "YES",
+				Null: nullable,
 			},
 		}
 
+		// TODO
 		// if defaultVal.Valid {
 		// 	c.Default = &schema.RawExpr{X: defaultVal.String}
 		// }
