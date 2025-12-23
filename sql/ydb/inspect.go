@@ -206,10 +206,13 @@ func (i *inspect) columns(ctx context.Context, t *schema.Table) error {
 			},
 		}
 
-		// TODO
-		// if defaultVal.Valid {
-		// 	c.Default = &schema.RawExpr{X: defaultVal.String}
-		// }
+		if column.DefaultValue != nil {
+			if defaultLiteral := column.DefaultValue.Literal(); defaultLiteral != nil {
+				atlasColumn.Default = &schema.Literal{
+					V: defaultLiteral.Yql(),
+				}
+			}
+		}
 
 		t.AddColumns(atlasColumn)
 	}
