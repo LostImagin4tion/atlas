@@ -100,13 +100,14 @@ func formatFloatType(t *schema.FloatType) (string, error) {
 }
 
 func formatDecimalType(t *schema.DecimalType) (string, error) {
-	if t.Precision > 0 {
-		if t.Scale > 0 {
-			return fmt.Sprintf("%s(%d,%d)", TypeDecimal, t.Precision, t.Scale), nil
-		}
-		return fmt.Sprintf("%s(%d,%d)", TypeDecimal, t.Precision, t.Precision), nil
+	if t.Precision < 1 || t.Precision > 35 {
+		return "", fmt.Errorf("ydb: DECIMAL precision must be in [1, 35] range, but was %q", t.Precision)
 	}
-	return fmt.Sprintf("%s(22,9)", TypeDecimal), nil
+	if t.Scale < 0 || t.Scale > t.Precision {
+		return "", fmt.Errorf("ydb: DECIMAL scale must be in [1, precision] range, but was %q", t.Precision)
+	}
+
+	return fmt.Sprintf("%s(%d,%d)", TypeDecimal, t.Precision, t.Scale), nil
 }
 
 func formatJSONType(t *schema.JSONType) (string, error) {
@@ -218,12 +219,12 @@ func parseDecimalType(parts []string, colDesc *columnDecscriptor) error {
 
 	precision, err := strconv.ParseInt(parts[1], 10, 64)
 	if err != nil || precision < 1 || precision > 35 {
-		return fmt.Errorf("ydb: invalid decimal precision: %q", parts[1])
+		return fmt.Errorf("ydb: DECIMAL precision must be in range [1, 35], but was %q", parts[1])
 	}
 
 	scale, err := strconv.ParseInt(parts[2], 10, 64)
 	if err != nil || scale < 0 || scale > precision {
-		return fmt.Errorf("ydb: invalid decimal scale: %q", parts[1])
+		return fmt.Errorf("ydb: DECIMAL scale must be in range [1, precision], but was %q", parts[1])
 	}
 
 	colDesc.precision = precision

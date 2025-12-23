@@ -38,7 +38,7 @@ const (
 	TypeString       = "string"
 	TypeUtf8         = "utf8"
 	TypeJson         = "json"
-	TypeJsonDocument = "jsonDocument"
+	TypeJsonDocument = "jsondocument"
 	TypeYson         = "yson"
 	TypeUuid         = "uuid"
 
