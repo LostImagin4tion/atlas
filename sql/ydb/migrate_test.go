@@ -528,3 +528,202 @@ func TestPlanChanges_DropColumn(t *testing.T) {
 		})
 	}
 }
+
+func TestPlanChanges_AddIndex(t *testing.T) {
+	usersTable := func() *schema.Table {
+		t := schema.NewTable("users").
+			AddColumns(
+				schema.NewColumn("id").SetType(&schema.IntegerType{T: TypeInt64}),
+				schema.NewColumn("name").SetType(&schema.StringType{T: TypeUtf8}),
+				schema.NewColumn("email").SetType(&schema.StringType{T: TypeUtf8}),
+			)
+		t.SetPrimaryKey(schema.NewPrimaryKey(t.Columns[0]))
+		return t
+	}()
+
+	tests := []struct {
+		name     string
+		changes  []schema.Change
+		wantPlan *migrate.Plan
+	}{
+		{
+			name: "add single column index",
+			changes: []schema.Change{
+				&schema.ModifyTable{
+					T: usersTable,
+					Changes: []schema.Change{
+						&schema.AddIndex{
+							I: schema.NewIndex("idx_name").AddColumns(usersTable.Columns[1]),
+						},
+					},
+				},
+			},
+			wantPlan: &migrate.Plan{
+				Transactional: true,
+				Changes: []*migrate.Change{
+					{
+						Cmd:     "ALTER TABLE `users` ADD INDEX `idx_name` GLOBAL ON (`name`)",
+						Reverse: "ALTER TABLE `users` DROP INDEX `idx_name`",
+						Comment: `create index "idx_name" to table: "users"`,
+					},
+				},
+			},
+		},
+		{
+			name: "add composite index",
+			changes: []schema.Change{
+				&schema.ModifyTable{
+					T: usersTable,
+					Changes: []schema.Change{
+						&schema.AddIndex{
+							I: schema.NewIndex("idx_name_email").AddColumns(usersTable.Columns[1], usersTable.Columns[2]),
+						},
+					},
+				},
+			},
+			wantPlan: &migrate.Plan{
+				Transactional: true,
+				Changes: []*migrate.Change{
+					{
+						Cmd:     "ALTER TABLE `users` ADD INDEX `idx_name_email` GLOBAL ON (`name`, `email`)",
+						Reverse: "ALTER TABLE `users` DROP INDEX `idx_name_email`",
+						Comment: `create index "idx_name_email" to table: "users"`,
+					},
+				},
+			},
+		},
+		{
+			name: "add multiple indexes",
+			changes: []schema.Change{
+				&schema.ModifyTable{
+					T: usersTable,
+					Changes: []schema.Change{
+						&schema.AddIndex{
+							I: schema.NewIndex("idx_name").AddColumns(usersTable.Columns[1]),
+						},
+						&schema.AddIndex{
+							I: schema.NewIndex("idx_email").AddColumns(usersTable.Columns[2]),
+						},
+					},
+				},
+			},
+			wantPlan: &migrate.Plan{
+				Transactional: true,
+				Changes: []*migrate.Change{
+					{
+						Cmd:     "ALTER TABLE `users` ADD INDEX `idx_name` GLOBAL ON (`name`)",
+						Reverse: "ALTER TABLE `users` DROP INDEX `idx_name`",
+						Comment: `create index "idx_name" to table: "users"`,
+					},
+					{
+						Cmd:     "ALTER TABLE `users` ADD INDEX `idx_email` GLOBAL ON (`email`)",
+						Reverse: "ALTER TABLE `users` DROP INDEX `idx_email`",
+						Comment: `create index "idx_email" to table: "users"`,
+					},
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			plan, err := DefaultPlan.PlanChanges(context.Background(), "test", tt.changes)
+			require.NoError(t, err)
+			require.Equal(t, tt.wantPlan.Transactional, plan.Transactional)
+			require.Len(t, plan.Changes, len(tt.wantPlan.Changes))
+			for i, c := range plan.Changes {
+				require.Equal(t, tt.wantPlan.Changes[i].Cmd, c.Cmd)
+				require.Equal(t, tt.wantPlan.Changes[i].Reverse, c.Reverse)
+				require.Equal(t, tt.wantPlan.Changes[i].Comment, c.Comment)
+			}
+		})
+	}
+}
+
+func TestPlanChanges_DropIndex(t *testing.T) {
+	usersTable := func() *schema.Table {
+		t := schema.NewTable("users").
+			AddColumns(
+				schema.NewColumn("id").SetType(&schema.IntegerType{T: TypeInt64}),
+				schema.NewColumn("name").SetType(&schema.StringType{T: TypeUtf8}),
+				schema.NewColumn("email").SetType(&schema.StringType{T: TypeUtf8}),
+			)
+		t.SetPrimaryKey(schema.NewPrimaryKey(t.Columns[0]))
+		return t
+	}()
+
+	tests := []struct {
+		name     string
+		changes  []schema.Change
+		wantPlan *migrate.Plan
+	}{
+		{
+			name: "drop single index",
+			changes: []schema.Change{
+				&schema.ModifyTable{
+					T: usersTable,
+					Changes: []schema.Change{
+						&schema.DropIndex{
+							I: schema.NewIndex("idx_name").AddColumns(usersTable.Columns[1]),
+						},
+					},
+				},
+			},
+			wantPlan: &migrate.Plan{
+				Transactional: true,
+				Changes: []*migrate.Change{
+					{
+						Cmd:     "ALTER TABLE `users` DROP INDEX `idx_name`",
+						Reverse: "ALTER TABLE `users` ADD INDEX `idx_name` GLOBAL ON (`name`)",
+						Comment: `drop index "idx_name" from table: "users"`,
+					},
+				},
+			},
+		},
+		{
+			name: "drop multiple indexes",
+			changes: []schema.Change{
+				&schema.ModifyTable{
+					T: usersTable,
+					Changes: []schema.Change{
+						&schema.DropIndex{
+							I: schema.NewIndex("idx_name").AddColumns(usersTable.Columns[1]),
+						},
+						&schema.DropIndex{
+							I: schema.NewIndex("idx_email").AddColumns(usersTable.Columns[2]),
+						},
+					},
+				},
+			},
+			wantPlan: &migrate.Plan{
+				Transactional: true,
+				Changes: []*migrate.Change{
+					{
+						Cmd:     "ALTER TABLE `users` DROP INDEX `idx_name`",
+						Reverse: "ALTER TABLE `users` ADD INDEX `idx_name` GLOBAL ON (`name`)",
+						Comment: `drop index "idx_name" from table: "users"`,
+					},
+					{
+						Cmd:     "ALTER TABLE `users` DROP INDEX `idx_email`",
+						Reverse: "ALTER TABLE `users` ADD INDEX `idx_email` GLOBAL ON (`email`)",
+						Comment: `drop index "idx_email" from table: "users"`,
+					},
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			plan, err := DefaultPlan.PlanChanges(context.Background(), "test", tt.changes)
+			require.NoError(t, err)
+			require.Equal(t, tt.wantPlan.Transactional, plan.Transactional)
+			require.Len(t, plan.Changes, len(tt.wantPlan.Changes))
+			for i, c := range plan.Changes {
+				require.Equal(t, tt.wantPlan.Changes[i].Cmd, c.Cmd)
+				require.Equal(t, tt.wantPlan.Changes[i].Reverse, c.Reverse)
+				require.Equal(t, tt.wantPlan.Changes[i].Comment, c.Comment)
+			}
+		})
+	}
+}
