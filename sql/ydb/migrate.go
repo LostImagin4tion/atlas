@@ -82,6 +82,10 @@ func (s *state) plan(changes []schema.Change) error {
 			if err := s.dropTable(change); err != nil {
 				return err
 			}
+		case *schema.ModifyTable:
+			if err := s.modifyTable(change); err != nil {
+				return err
+			}
 		case *schema.RenameTable:
 			s.renameTable(change)
 		default:
@@ -168,6 +172,88 @@ func (s *state) dropTable(drop *schema.DropTable) error {
 		Comment: fmt.Sprintf("drop %q table", drop.T.Name),
 		Reverse: reverse,
 	})
+	return nil
+}
+
+// modifyTable builds the statements that bring the table into its modified state.
+func (s *state) modifyTable(modify *schema.ModifyTable) error {
+	var (
+		alterOps []schema.Change
+	)
+
+	for _, change := range modify.Changes {
+		switch change := change.(type) {
+		case *schema.AddColumn:
+			alterOps = append(alterOps, change)
+
+		case *schema.DropColumn:
+			alterOps = append(alterOps, change)
+
+		default:
+			return fmt.Errorf("ydb: unsupported table change: %T", change)
+		}
+	}
+
+	if len(alterOps) > 0 {
+		if err := s.alterTable(modify.T, alterOps); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// alterTable modifies the given table by executing on it a list of changes in one SQL statement.
+func (s *state) alterTable(t *schema.Table, changes []schema.Change) error {
+	var reverse []schema.Change
+
+	buildFunc := func(changes []schema.Change) (string, error) {
+		b := s.Build("ALTER TABLE").Table(t)
+
+		err := b.MapCommaErr(changes, func(i int, builder *sqlx.Builder) error {
+			switch change := changes[i].(type) {
+			case *schema.AddColumn:
+				builder.P("ADD COLUMN")
+				if err := s.column(builder, change.C); err != nil {
+					return err
+				}
+				reverse = append(reverse, &schema.DropColumn{C: change.C})
+
+			case *schema.DropColumn:
+				builder.P("DROP COLUMN").Ident(change.C.Name)
+				reverse = append(reverse, &schema.AddColumn{C: change.C})
+			}
+
+			return nil
+		})
+		if err != nil {
+			return "", err
+		}
+
+		return b.String(), nil
+	}
+
+	stmt, err := buildFunc(changes)
+	if err != nil {
+		return fmt.Errorf("alter table %q: %v", t.Name, err)
+	}
+
+	cmd := &migrate.Change{
+		Cmd: stmt,
+		Source: &schema.ModifyTable{
+			T:       t,
+			Changes: changes,
+		},
+		Comment: fmt.Sprintf("modify %q table", t.Name),
+	}
+
+	// Changes should be reverted in a reversed order they were created.
+	sqlx.ReverseChanges(reverse)
+	if cmd.Reverse, err = buildFunc(reverse); err != nil {
+		return fmt.Errorf("reverse alter table %q: %v", t.Name, err)
+	}
+
+	s.append(cmd)
 	return nil
 }
 
