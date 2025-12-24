@@ -104,7 +104,7 @@ func (i *inspect) InspectSchema(
 // schemas returns the list of schemas in the database.
 func (i *inspect) schemas(ctx context.Context, opts *schema.InspectRealmOption) ([]*schema.Schema, error) {
 	var names []string
-	if opts != nil && len(opts.Schemas) > 0 {
+	if opts != nil && len(opts.Schemas) > 0 && opts.Schemas[0] != "" {
 		names = opts.Schemas
 	} else if i.database != "" {
 		names = []string{i.database}
