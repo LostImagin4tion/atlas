@@ -202,6 +202,9 @@ func (s *state) modifyTable(modify *schema.ModifyTable) error {
 			dropIndexOps = append(dropIndexOps, &schema.DropIndex{I: change.From})
 			addIndexOps = append(addIndexOps, &schema.AddIndex{I: change.To})
 
+		case *schema.RenameIndex:
+			s.renameIndex(modify, change)
+
 		default:
 			return fmt.Errorf("ydb: unsupported table change: %T", change)
 		}
@@ -336,6 +339,16 @@ func (s *state) renameTable(c *schema.RenameTable) {
 		Comment: fmt.Sprintf("rename a table from %q to %q", c.From.Name, c.To.Name),
 		Cmd:     s.Build("ALTER TABLE").Table(c.From).P("RENAME TO").Table(c.To).String(),
 		Reverse: s.Build("ALTER TABLE").Table(c.To).P("RENAME TO").Table(c.From).String(),
+	})
+}
+
+// renameIndex builds and appends the statement for renaming an index.
+func (s *state) renameIndex(modify *schema.ModifyTable, c *schema.RenameIndex) {
+	s.append(&migrate.Change{
+		Source:  c,
+		Comment: fmt.Sprintf("rename an index from %q to %q", c.From.Name, c.To.Name),
+		Cmd:     s.Build("ALTER TABLE").Table(modify.T).P("RENAME INDEX").Ident(c.From.Name).P("TO").Ident(c.To.Name).String(),
+		Reverse: s.Build("ALTER TABLE").Table(modify.T).P("RENAME INDEX").Ident(c.To.Name).P("TO").Ident(c.From.Name).String(),
 	})
 }
 
