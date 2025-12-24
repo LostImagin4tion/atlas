@@ -178,7 +178,9 @@ func (s *state) dropTable(drop *schema.DropTable) error {
 // modifyTable builds the statements that bring the table into its modified state.
 func (s *state) modifyTable(modify *schema.ModifyTable) error {
 	var (
-		alterOps []schema.Change
+		alterOps     []schema.Change
+		addIndexOps  []*schema.AddIndex
+		dropIndexOps []*schema.DropIndex
 	)
 
 	for _, change := range modify.Changes {
@@ -189,15 +191,30 @@ func (s *state) modifyTable(modify *schema.ModifyTable) error {
 		case *schema.DropColumn:
 			alterOps = append(alterOps, change)
 
+		case *schema.AddIndex:
+			addIndexOps = append(addIndexOps, change)
+
+		case *schema.DropIndex:
+			dropIndexOps = append(dropIndexOps, change)
+
 		default:
 			return fmt.Errorf("ydb: unsupported table change: %T", change)
 		}
+	}
+
+	// Drop indexes first, then alter table, then add indexes
+	if err := s.dropIndexes(modify, modify.T, dropIndexOps...); err != nil {
+		return err
 	}
 
 	if len(alterOps) > 0 {
 		if err := s.alterTable(modify.T, alterOps); err != nil {
 			return err
 		}
+	}
+
+	if err := s.addIndexes(modify, modify.T, addIndexOps...); err != nil {
+		return err
 	}
 
 	return nil
@@ -254,6 +271,56 @@ func (s *state) alterTable(t *schema.Table, changes []schema.Change) error {
 	}
 
 	s.append(cmd)
+	return nil
+}
+
+func (s *state) addIndexes(src schema.Change, t *schema.Table, adds ...*schema.AddIndex) error {
+	for _, add := range adds {
+		idx := add.I
+		b := s.Build("ALTER TABLE").
+			Table(t).
+			P("ADD INDEX").
+			Ident(idx.Name).
+			P("GLOBAL ON")
+
+		s.indexParts(b, idx.Parts)
+
+		reverseOp := s.Build("ALTER TABLE").
+			Table(t).
+			P("DROP INDEX").
+			Ident(idx.Name).
+			String()
+
+		s.append(&migrate.Change{
+			Cmd:     b.String(),
+			Source:  src,
+			Comment: fmt.Sprintf("create index %q to table: %q", idx.Name, t.Name),
+			Reverse: reverseOp,
+		})
+	}
+	return nil
+}
+
+func (s *state) dropIndexes(src schema.Change, t *schema.Table, drops ...*schema.DropIndex) error {
+	adds := make([]*schema.AddIndex, len(drops))
+	for i, d := range drops {
+		adds[i] = &schema.AddIndex{I: d.I, Extra: d.Extra}
+	}
+
+	reverseState := &state{conn: s.conn, PlanOptions: s.PlanOptions}
+	if err := reverseState.addIndexes(src, t, adds...); err != nil {
+		return err
+	}
+
+	for i, add := range adds {
+		s.append(&migrate.Change{
+			Cmd:     reverseState.Changes[i].Reverse.(string),
+			Source:  src,
+			Comment: fmt.Sprintf("drop index %q from table: %q", add.I.Name, t.Name),
+			Reverse: reverseState.Changes[i].Cmd,
+		})
+	}
+
 	return nil
 }
 
