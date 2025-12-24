@@ -309,3 +309,36 @@ func TestPlanChanges_MultipleTables(t *testing.T) {
 	require.Contains(t, plan.Changes[0].Cmd, "CREATE TABLE `users`")
 	require.Contains(t, plan.Changes[1].Cmd, "CREATE TABLE `posts`")
 }
+
+func TestPlanChanges_RenameTable(t *testing.T) {
+	changes := []schema.Change{
+		&schema.RenameTable{
+			From: func() *schema.Table {
+				t := schema.NewTable("old_users").
+					AddColumns(
+						schema.NewColumn("id").SetType(&schema.IntegerType{T: TypeInt64}),
+						schema.NewColumn("name").SetType(&schema.StringType{T: TypeUtf8}),
+					)
+				t.SetPrimaryKey(schema.NewPrimaryKey(t.Columns[0]))
+				return t
+			}(),
+			To: func() *schema.Table {
+				t := schema.NewTable("new_users").
+					AddColumns(
+						schema.NewColumn("id").SetType(&schema.IntegerType{T: TypeInt64}),
+						schema.NewColumn("name").SetType(&schema.StringType{T: TypeUtf8}),
+					)
+				t.SetPrimaryKey(schema.NewPrimaryKey(t.Columns[0]))
+				return t
+			}(),
+		},
+	}
+
+	plan, err := DefaultPlan.PlanChanges(context.Background(), "test", changes)
+	require.NoError(t, err)
+	require.Len(t, plan.Changes, 1)
+	require.Equal(t, "ALTER TABLE `old_users` RENAME TO `new_users`", plan.Changes[0].Cmd)
+	require.Equal(t, "ALTER TABLE `new_users` RENAME TO `old_users`", plan.Changes[0].Reverse)
+	require.Equal(t, `rename a table from "old_users" to "new_users"`, plan.Changes[0].Comment)
+}
+
