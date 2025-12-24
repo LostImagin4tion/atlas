@@ -197,6 +197,11 @@ func (s *state) modifyTable(modify *schema.ModifyTable) error {
 		case *schema.DropIndex:
 			dropIndexOps = append(dropIndexOps, change)
 
+		case *schema.ModifyIndex:
+			// Index modification requires rebuilding the index.
+			dropIndexOps = append(dropIndexOps, &schema.DropIndex{I: change.From})
+			addIndexOps = append(addIndexOps, &schema.AddIndex{I: change.To})
+
 		default:
 			return fmt.Errorf("ydb: unsupported table change: %T", change)
 		}

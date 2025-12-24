@@ -727,3 +727,66 @@ func TestPlanChanges_DropIndex(t *testing.T) {
 		})
 	}
 }
+
+func TestPlanChanges_ModifyIndex(t *testing.T) {
+	usersTable := func() *schema.Table {
+		t := schema.NewTable("users").
+			AddColumns(
+				schema.NewColumn("id").SetType(&schema.IntegerType{T: TypeInt64}),
+				schema.NewColumn("name").SetType(&schema.StringType{T: TypeUtf8}),
+				schema.NewColumn("email").SetType(&schema.StringType{T: TypeUtf8}),
+			)
+		t.SetPrimaryKey(schema.NewPrimaryKey(t.Columns[0]))
+		return t
+	}()
+
+	tests := []struct {
+		name     string
+		changes  []schema.Change
+		wantPlan *migrate.Plan
+	}{
+		{
+			name: "modify index (drop and recreate)",
+			changes: []schema.Change{
+				&schema.ModifyTable{
+					T: usersTable,
+					Changes: []schema.Change{
+						&schema.ModifyIndex{
+							From: schema.NewIndex("idx_name").AddColumns(usersTable.Columns[1]),
+							To:   schema.NewIndex("idx_name").AddColumns(usersTable.Columns[1], usersTable.Columns[2]),
+						},
+					},
+				},
+			},
+			wantPlan: &migrate.Plan{
+				Transactional: true,
+				Changes: []*migrate.Change{
+					{
+						Cmd:     "ALTER TABLE `users` DROP INDEX `idx_name`",
+						Reverse: "ALTER TABLE `users` ADD INDEX `idx_name` GLOBAL ON (`name`)",
+						Comment: `drop index "idx_name" from table: "users"`,
+					},
+					{
+						Cmd:     "ALTER TABLE `users` ADD INDEX `idx_name` GLOBAL ON (`name`, `email`)",
+						Reverse: "ALTER TABLE `users` DROP INDEX `idx_name`",
+						Comment: `create index "idx_name" to table: "users"`,
+					},
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			plan, err := DefaultPlan.PlanChanges(context.Background(), "test", tt.changes)
+			require.NoError(t, err)
+			require.Equal(t, tt.wantPlan.Transactional, plan.Transactional)
+			require.Len(t, plan.Changes, len(tt.wantPlan.Changes))
+			for i, c := range plan.Changes {
+				require.Equal(t, tt.wantPlan.Changes[i].Cmd, c.Cmd)
+				require.Equal(t, tt.wantPlan.Changes[i].Reverse, c.Reverse)
+				require.Equal(t, tt.wantPlan.Changes[i].Comment, c.Comment)
+			}
+		})
+	}
+}
