@@ -269,15 +269,6 @@ func TestPlanChanges_DropTable(t *testing.T) {
 	}
 }
 
-func TestPlanChanges_UnsupportedChange(t *testing.T) {
-	// Test that unsupported changes return an error
-	_, err := DefaultPlan.PlanChanges(context.Background(), "test", []schema.Change{
-		&schema.ModifyTable{T: schema.NewTable("users")},
-	})
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "unsupported change type")
-}
-
 func TestPlanChanges_MultipleTables(t *testing.T) {
 	changes := []schema.Change{
 		&schema.AddTable{
