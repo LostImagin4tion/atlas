@@ -122,7 +122,7 @@ func open(nativeDriver *ydbSdk.Driver, sqlDriver *sql.DB) (migrate.Driver, error
 	return &Driver{
 		conn:        c,
 		Differ:      &sqlx.Diff{DiffDriver: &diff{c}},
-		Inspector:   &inspect{c},
+		Inspector:   newInspect(c),
 		PlanApplier: &planApply{c},
 	}, nil
 }
