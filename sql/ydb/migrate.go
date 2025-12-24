@@ -82,6 +82,8 @@ func (s *state) plan(changes []schema.Change) error {
 			if err := s.dropTable(change); err != nil {
 				return err
 			}
+		case *schema.RenameTable:
+			s.renameTable(change)
 		default:
 			return fmt.Errorf("ydb: unsupported change type: %T", change)
 		}
@@ -92,10 +94,10 @@ func (s *state) plan(changes []schema.Change) error {
 // addTable builds and executes the query for creating a table in a schema.
 func (s *state) addTable(addTable *schema.AddTable) error {
 	var errs []string
-	b := s.Build("CREATE TABLE")
+	builder := s.Build("CREATE TABLE")
 
-	b.Table(addTable.T)
-	b.WrapIndent(func(b *sqlx.Builder) {
+	builder.Table(addTable.T)
+	builder.WrapIndent(func(b *sqlx.Builder) {
 		b.MapIndent(addTable.T.Columns, func(i int, b *sqlx.Builder) {
 			if err := s.column(b, addTable.T.Columns[i]); err != nil {
 				errs = append(errs, err.Error())
@@ -123,18 +125,12 @@ func (s *state) addTable(addTable *schema.AddTable) error {
 		String()
 
 	s.append(&migrate.Change{
-		Cmd:     b.String(),
+		Cmd:     builder.String(),
 		Source:  addTable,
 		Comment: fmt.Sprintf("create %q table", addTable.T.Name),
 		Reverse: reverse,
 	})
 	return nil
-}
-
-// indexDef writes an inline index definition for CREATE TABLE.
-func (s *state) indexDef(b *sqlx.Builder, idx *schema.Index) {
-	b.P("INDEX").Ident(idx.Name).P("GLOBAL ON")
-	s.indexParts(b, idx.Parts)
 }
 
 // dropTable builds and executes the query for dropping a table from a schema.
@@ -148,11 +144,11 @@ func (s *state) dropTable(drop *schema.DropTable) error {
 		return fmt.Errorf("calculate reverse for drop table %q: %w", drop.T.Name, err)
 	}
 
-	b := s.Build("DROP TABLE")
+	builder := s.Build("DROP TABLE")
 	if sqlx.Has(drop.Extra, &schema.IfExists{}) {
-		b.P("IF EXISTS")
+		builder.P("IF EXISTS")
 	}
-	b.Table(drop.T)
+	builder.Table(drop.T)
 
 	// The reverse of 'DROP TABLE' might be a multi-statement operation
 	reverse := func() any {
@@ -167,12 +163,22 @@ func (s *state) dropTable(drop *schema.DropTable) error {
 	}()
 
 	s.append(&migrate.Change{
-		Cmd:     b.String(),
+		Cmd:     builder.String(),
 		Source:  drop,
 		Comment: fmt.Sprintf("drop %q table", drop.T.Name),
 		Reverse: reverse,
 	})
 	return nil
+}
+
+// renameTable builds and appends the statement for renaming a table.
+func (s *state) renameTable(c *schema.RenameTable) {
+	s.append(&migrate.Change{
+		Source:  c,
+		Comment: fmt.Sprintf("rename a table from %q to %q", c.From.Name, c.To.Name),
+		Cmd:     s.Build("ALTER TABLE").Table(c.From).P("RENAME TO").Table(c.To).String(),
+		Reverse: s.Build("ALTER TABLE").Table(c.To).P("RENAME TO").Table(c.From).String(),
+	})
 }
 
 // column writes the column definition to the builder.
@@ -188,6 +194,12 @@ func (s *state) column(b *sqlx.Builder, c *schema.Column) error {
 		b.P("NOT NULL")
 	}
 	return nil
+}
+
+// indexDef writes an inline index definition for CREATE TABLE.
+func (s *state) indexDef(b *sqlx.Builder, idx *schema.Index) {
+	b.P("INDEX").Ident(idx.Name).P("GLOBAL ON")
+	s.indexParts(b, idx.Parts)
 }
 
 // indexParts writes the index parts (columns) to the builder.
