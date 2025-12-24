@@ -342,3 +342,189 @@ func TestPlanChanges_RenameTable(t *testing.T) {
 	require.Equal(t, `rename a table from "old_users" to "new_users"`, plan.Changes[0].Comment)
 }
 
+func TestPlanChanges_AddColumn(t *testing.T) {
+	usersTable := func() *schema.Table {
+		t := schema.NewTable("users").
+			AddColumns(
+				schema.NewColumn("id").SetType(&schema.IntegerType{T: TypeInt64}),
+			)
+		t.SetPrimaryKey(schema.NewPrimaryKey(t.Columns[0]))
+		return t
+	}()
+
+	tests := []struct {
+		name     string
+		changes  []schema.Change
+		wantPlan *migrate.Plan
+	}{
+		{
+			name: "add single column",
+			changes: []schema.Change{
+				&schema.ModifyTable{
+					T: usersTable,
+					Changes: []schema.Change{
+						&schema.AddColumn{
+							C: schema.NewColumn("email").SetType(&schema.StringType{T: TypeUtf8}),
+						},
+					},
+				},
+			},
+			wantPlan: &migrate.Plan{
+				Transactional: true,
+				Changes: []*migrate.Change{
+					{
+						Cmd:     "ALTER TABLE `users` ADD COLUMN `email` utf8 NOT NULL",
+						Reverse: "ALTER TABLE `users` DROP COLUMN `email`",
+						Comment: `modify "users" table`,
+					},
+				},
+			},
+		},
+		{
+			name: "add nullable column",
+			changes: []schema.Change{
+				&schema.ModifyTable{
+					T: usersTable,
+					Changes: []schema.Change{
+						&schema.AddColumn{
+							C: schema.NewNullColumn("bio").SetType(&schema.StringType{T: TypeUtf8}),
+						},
+					},
+				},
+			},
+			wantPlan: &migrate.Plan{
+				Transactional: true,
+				Changes: []*migrate.Change{
+					{
+						Cmd:     "ALTER TABLE `users` ADD COLUMN `bio` utf8",
+						Reverse: "ALTER TABLE `users` DROP COLUMN `bio`",
+						Comment: `modify "users" table`,
+					},
+				},
+			},
+		},
+		{
+			name: "add multiple columns",
+			changes: []schema.Change{
+				&schema.ModifyTable{
+					T: usersTable,
+					Changes: []schema.Change{
+						&schema.AddColumn{
+							C: schema.NewColumn("email").SetType(&schema.StringType{T: TypeUtf8}),
+						},
+						&schema.AddColumn{
+							C: schema.NewColumn("age").SetType(&schema.IntegerType{T: TypeInt32}),
+						},
+					},
+				},
+			},
+			wantPlan: &migrate.Plan{
+				Transactional: true,
+				Changes: []*migrate.Change{
+					{
+						Cmd:     "ALTER TABLE `users` ADD COLUMN `email` utf8 NOT NULL, ADD COLUMN `age` int32 NOT NULL",
+						Reverse: "ALTER TABLE `users` DROP COLUMN `age`, DROP COLUMN `email`",
+						Comment: `modify "users" table`,
+					},
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			plan, err := DefaultPlan.PlanChanges(context.Background(), "test", tt.changes)
+			require.NoError(t, err)
+			require.Equal(t, tt.wantPlan.Transactional, plan.Transactional)
+			require.Len(t, plan.Changes, len(tt.wantPlan.Changes))
+			for i, c := range plan.Changes {
+				require.Equal(t, tt.wantPlan.Changes[i].Cmd, c.Cmd)
+				require.Equal(t, tt.wantPlan.Changes[i].Reverse, c.Reverse)
+				require.Equal(t, tt.wantPlan.Changes[i].Comment, c.Comment)
+			}
+		})
+	}
+}
+
+func TestPlanChanges_DropColumn(t *testing.T) {
+	usersTable := func() *schema.Table {
+		t := schema.NewTable("users").
+			AddColumns(
+				schema.NewColumn("id").SetType(&schema.IntegerType{T: TypeInt64}),
+				schema.NewColumn("name").SetType(&schema.StringType{T: TypeUtf8}),
+				schema.NewColumn("email").SetType(&schema.StringType{T: TypeUtf8}),
+			)
+		t.SetPrimaryKey(schema.NewPrimaryKey(t.Columns[0]))
+		return t
+	}()
+
+	tests := []struct {
+		name     string
+		changes  []schema.Change
+		wantPlan *migrate.Plan
+	}{
+		{
+			name: "drop single column",
+			changes: []schema.Change{
+				&schema.ModifyTable{
+					T: usersTable,
+					Changes: []schema.Change{
+						&schema.DropColumn{
+							C: schema.NewColumn("email").SetType(&schema.StringType{T: TypeUtf8}),
+						},
+					},
+				},
+			},
+			wantPlan: &migrate.Plan{
+				Transactional: true,
+				Changes: []*migrate.Change{
+					{
+						Cmd:     "ALTER TABLE `users` DROP COLUMN `email`",
+						Reverse: "ALTER TABLE `users` ADD COLUMN `email` utf8 NOT NULL",
+						Comment: `modify "users" table`,
+					},
+				},
+			},
+		},
+		{
+			name: "drop multiple columns",
+			changes: []schema.Change{
+				&schema.ModifyTable{
+					T: usersTable,
+					Changes: []schema.Change{
+						&schema.DropColumn{
+							C: schema.NewColumn("name").SetType(&schema.StringType{T: TypeUtf8}),
+						},
+						&schema.DropColumn{
+							C: schema.NewColumn("email").SetType(&schema.StringType{T: TypeUtf8}),
+						},
+					},
+				},
+			},
+			wantPlan: &migrate.Plan{
+				Transactional: true,
+				Changes: []*migrate.Change{
+					{
+						Cmd:     "ALTER TABLE `users` DROP COLUMN `name`, DROP COLUMN `email`",
+						Reverse: "ALTER TABLE `users` ADD COLUMN `email` utf8 NOT NULL, ADD COLUMN `name` utf8 NOT NULL",
+						Comment: `modify "users" table`,
+					},
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			plan, err := DefaultPlan.PlanChanges(context.Background(), "test", tt.changes)
+			require.NoError(t, err)
+			require.Equal(t, tt.wantPlan.Transactional, plan.Transactional)
+			require.Len(t, plan.Changes, len(tt.wantPlan.Changes))
+			for i, c := range plan.Changes {
+				require.Equal(t, tt.wantPlan.Changes[i].Cmd, c.Cmd)
+				require.Equal(t, tt.wantPlan.Changes[i].Reverse, c.Reverse)
+				require.Equal(t, tt.wantPlan.Changes[i].Comment, c.Comment)
+			}
+		})
+	}
+}
