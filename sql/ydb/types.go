@@ -77,12 +77,18 @@ type (
 	}
 )
 
+func SerialFromInt(intType *schema.IntegerType) *SerialType {
+	serialType := &SerialType{}
+	serialType.SetType(intType)
+	return serialType
+}
+
 func (s *SerialType) IntegerType() *schema.IntegerType {
 	t := &schema.IntegerType{T: TypeInt64}
 	switch s.T {
-	case TypeSmallSerial, TypeSerial2:
+	case TypeSerial2, TypeSmallSerial:
 		t.T = TypeInt16
-	case TypeSerial, TypeSerial4:
+	case TypeSerial4, TypeSerial:
 		t.T = TypeInt32
 	case TypeSerial8, TypeBigSerial:
 		t.T = TypeInt64
@@ -92,7 +98,7 @@ func (s *SerialType) IntegerType() *schema.IntegerType {
 
 func (s *SerialType) SetType(t *schema.IntegerType) {
 	switch t.T {
-	case TypeInt16:
+	case TypeInt8, TypeInt16:
 		s.T = TypeSerial2
 	case TypeInt32:
 		s.T = TypeSerial4
