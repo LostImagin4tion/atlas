@@ -282,27 +282,47 @@ func (s *state) alterTable(t *schema.Table, changes []schema.Change) error {
 	return nil
 }
 
-func (s *state) addIndexes(src schema.Change, t *schema.Table, adds ...*schema.AddIndex) error {
-	for _, add := range adds {
-		idx := add.I
+func (s *state) addIndexes(src schema.Change, t *schema.Table, indexes ...*schema.AddIndex) error {
+	for _, add := range indexes {
+		index := add.I
+		indexAttrs := YDBIndexAttributes{}
+		sqlx.Has(index.Attrs, &indexAttrs)
+
 		b := s.Build("ALTER TABLE").
 			Table(t).
 			P("ADD INDEX").
-			Ident(idx.Name).
-			P("GLOBAL ON")
+			Ident(index.Name)
 
-		s.indexParts(b, idx.Parts)
+		if indexAttrs.Global {
+			b.P("GLOBAL")
+		} else {
+			b.P("LOCAL")
+		}
+
+		if index.Unique {
+			b.P("UNIQUE")
+		}
+
+		if indexAttrs.Sync {
+			b.P("SYNC")
+		} else {
+			b.P("ASYNC")
+		}
+
+		b.P("ON")
+
+		s.indexParts(b, index.Parts)
 
 		reverseOp := s.Build("ALTER TABLE").
 			Table(t).
 			P("DROP INDEX").
-			Ident(idx.Name).
+			Ident(index.Name).
 			String()
 
 		s.append(&migrate.Change{
 			Cmd:     b.String(),
 			Source:  src,
-			Comment: fmt.Sprintf("create index %q to table: %q", idx.Name, t.Name),
+			Comment: fmt.Sprintf("create index %q to table: %q", index.Name, t.Name),
 			Reverse: reverseOp,
 		})
 	}
