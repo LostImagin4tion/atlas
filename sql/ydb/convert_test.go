@@ -65,14 +65,14 @@ func TestConvert_FormatType(t *testing.T) {
 		{name: "utf8", typ: &schema.StringType{T: TypeUtf8}, expected: TypeUtf8},
 
 		// JSON types
-		{name: "json", typ: &schema.JSONType{T: TypeJson}, expected: TypeJson},
-		{name: "jsondocument", typ: &schema.JSONType{T: TypeJsonDocument}, expected: TypeJsonDocument},
+		{name: "json", typ: &schema.JSONType{T: TypeJSON}, expected: TypeJSON},
+		{name: "jsondocument", typ: &schema.JSONType{T: TypeJSONDocument}, expected: TypeJSONDocument},
 
 		// YSON type
 		{name: "yson", typ: YsonType{T: TypeYson}, expected: TypeYson},
 
 		// UUID type
-		{name: "uuid", typ: &schema.UUIDType{T: TypeUuid}, expected: TypeUuid},
+		{name: "uuid", typ: &schema.UUIDType{T: TypeUUID}, expected: TypeUUID},
 
 		// Date/Time types
 		{name: "date", typ: &schema.TimeType{T: TypeDate}, expected: TypeDate},
@@ -160,14 +160,14 @@ func TestConvert_ParseType(t *testing.T) {
 		{name: "utf8", input: TypeUtf8, expected: &schema.StringType{T: TypeUtf8}},
 
 		// JSON types
-		{name: "json", input: TypeJson, expected: &schema.JSONType{T: TypeJson}},
-		{name: "jsonDocument", input: TypeJsonDocument, expected: &schema.JSONType{T: TypeJsonDocument}},
+		{name: "json", input: TypeJSON, expected: &schema.JSONType{T: TypeJSON}},
+		{name: "jsonDocument", input: TypeJSONDocument, expected: &schema.JSONType{T: TypeJSONDocument}},
 
 		// YSON type
 		{name: "yson", input: TypeYson, expected: &YsonType{T: TypeYson}},
 
 		// UUID type
-		{name: "uuid", input: TypeUuid, expected: &schema.UUIDType{T: TypeUuid}},
+		{name: "uuid", input: TypeUUID, expected: &schema.UUIDType{T: TypeUUID}},
 
 		// Date/Time types
 		{name: "date", input: TypeDate, expected: &schema.TimeType{T: TypeDate}},

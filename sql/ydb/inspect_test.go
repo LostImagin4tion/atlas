@@ -32,7 +32,7 @@ func (m *mockSchemeClient) Database() string {
 	return m.database
 }
 
-func (m *mockSchemeClient) ListDirectory(ctx context.Context, path string) (scheme.Directory, error) {
+func (m *mockSchemeClient) ListDirectory(_ context.Context, path string) (scheme.Directory, error) {
 	if m.listDirErr != nil {
 		return scheme.Directory{}, m.listDirErr
 	}
@@ -42,7 +42,7 @@ func (m *mockSchemeClient) ListDirectory(ctx context.Context, path string) (sche
 	return scheme.Directory{}, errors.New("path not found: " + path)
 }
 
-func (m *mockSchemeClient) DescribePath(ctx context.Context, path string) (scheme.Entry, error) {
+func (m *mockSchemeClient) DescribePath(_ context.Context, path string) (scheme.Entry, error) {
 	return scheme.Entry{}, nil
 }
 

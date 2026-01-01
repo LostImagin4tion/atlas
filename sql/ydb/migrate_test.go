@@ -151,7 +151,7 @@ func TestPlanChanges_AddTable(t *testing.T) {
 								schema.NewColumn("flag").SetType(&schema.BoolType{T: TypeBool}),
 								schema.NewColumn("price").SetType(&schema.DecimalType{T: TypeDecimal, Precision: 10, Scale: 2}),
 								schema.NewColumn("timestamp").SetType(&schema.TimeType{T: TypeTimestamp}),
-								schema.NewColumn("data").SetType(&schema.JSONType{T: TypeJson}),
+								schema.NewColumn("data").SetType(&schema.JSONType{T: TypeJSON}),
 							)
 						t.SetPrimaryKey(schema.NewPrimaryKey(t.Columns[0]))
 						return t

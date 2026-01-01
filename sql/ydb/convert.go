@@ -44,7 +44,7 @@ func FormatType(typ schema.Type) (string, error) {
 	case YsonType:
 		formatted = t.T
 	case *schema.UUIDType:
-		formatted = TypeUuid
+		formatted = TypeUUID
 	case *schema.TimeType:
 		formatted, err = formatTimeType(t)
 	case *schema.UnsupportedType:
@@ -113,7 +113,7 @@ func formatDecimalType(t *schema.DecimalType) (string, error) {
 func formatJSONType(t *schema.JSONType) (string, error) {
 	typ := strings.ToLower(t.T)
 	switch typ {
-	case TypeJsonDocument, TypeJson:
+	case TypeJSONDocument, TypeJSON:
 		return typ, nil
 	default:
 		return "", fmt.Errorf("ydb: unsupported object identifier type: %q", t.T)
@@ -284,11 +284,11 @@ func columnType(colDesc *columnDecscriptor) (schema.Type, error) {
 		typ = &schema.BinaryType{T: strT}
 	case TypeUtf8:
 		typ = &schema.StringType{T: strT}
-	case TypeJson, TypeJsonDocument:
+	case TypeJSON, TypeJSONDocument:
 		typ = &schema.JSONType{T: strT}
 	case TypeYson:
 		typ = &YsonType{T: strT}
-	case TypeUuid:
+	case TypeUUID:
 		typ = &schema.UUIDType{T: strT}
 	case TypeDate,
 		TypeDate32,

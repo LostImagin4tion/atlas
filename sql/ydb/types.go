@@ -37,10 +37,10 @@ const (
 
 	TypeString       = "string"
 	TypeUtf8         = "utf8"
-	TypeJson         = "json"
-	TypeJsonDocument = "jsondocument"
+	TypeJSON         = "json"
+	TypeJSONDocument = "jsondocument"
 	TypeYson         = "yson"
-	TypeUuid         = "uuid"
+	TypeUUID         = "uuid"
 
 	TypeDate        = "date"
 	TypeDate32      = "date32"
@@ -60,23 +60,27 @@ const (
 )
 
 type (
+	// OptionalType represents nullable type
 	OptionalType struct {
 		schema.Type
 		T         string
 		InnerType schema.Type
 	}
 
+	// SerialType is used to implement type with auto increment
 	SerialType struct {
 		schema.Type
 		T string
 	}
 
+	// YsonType represents YSON - JSON-like data format
 	YsonType struct {
 		schema.Type
 		T string
 	}
 )
 
+// Converts [SerialType] to corresponding [schema.IntegerType]
 func (s *SerialType) IntegerType() *schema.IntegerType {
 	t := &schema.IntegerType{T: TypeInt64}
 	switch s.T {
@@ -90,6 +94,7 @@ func (s *SerialType) IntegerType() *schema.IntegerType {
 	return t
 }
 
+// Sets [schema.IntegerType] as base underlying type for [SerialType]
 func (s *SerialType) SetType(t *schema.IntegerType) {
 	switch t.T {
 	case TypeInt16:

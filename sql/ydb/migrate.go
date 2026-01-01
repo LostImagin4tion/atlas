@@ -26,7 +26,7 @@ type planApply struct{ *conn }
 
 // PlanChanges returns a migration plan for the given schema changes.
 func (p *planApply) PlanChanges(
-	ctx context.Context,
+	_ context.Context,
 	name string,
 	changes []schema.Change,
 	opts ...migrate.PlanOption,
