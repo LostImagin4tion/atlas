@@ -42,19 +42,19 @@ func (m *mockSchemeClient) ListDirectory(_ context.Context, path string) (scheme
 	return scheme.Directory{}, errors.New("path not found: " + path)
 }
 
-func (m *mockSchemeClient) DescribePath(_ context.Context, path string) (scheme.Entry, error) {
+func (m *mockSchemeClient) DescribePath(_ context.Context, _ string) (scheme.Entry, error) {
 	return scheme.Entry{}, nil
 }
 
-func (m *mockSchemeClient) MakeDirectory(ctx context.Context, path string) error {
+func (m *mockSchemeClient) MakeDirectory(_ context.Context, _ string) error {
 	return nil
 }
 
-func (m *mockSchemeClient) RemoveDirectory(ctx context.Context, path string) error {
+func (m *mockSchemeClient) RemoveDirectory(_ context.Context, _ string) error {
 	return nil
 }
 
-func (m *mockSchemeClient) ModifyPermissions(ctx context.Context, path string, opts ...scheme.PermissionsOption) error {
+func (m *mockSchemeClient) ModifyPermissions(_ context.Context, _ string, _ ...scheme.PermissionsOption) error {
 	return nil
 }
 
@@ -64,23 +64,23 @@ type mockTableClient struct {
 	describeErr error
 }
 
-func (m *mockTableClient) CreateSession(ctx context.Context, opts ...table.Option) (table.ClosableSession, error) {
+func (m *mockTableClient) CreateSession(_ context.Context, _ ...table.Option) (table.ClosableSession, error) {
 	return nil, nil
 }
 
-func (m *mockTableClient) Do(ctx context.Context, op table.Operation, opts ...table.Option) error {
+func (m *mockTableClient) Do(_ context.Context, _ table.Operation, _ ...table.Option) error {
 	return nil
 }
 
-func (m *mockTableClient) DoTx(ctx context.Context, op table.TxOperation, opts ...table.Option) error {
+func (m *mockTableClient) DoTx(_ context.Context, _ table.TxOperation, _ ...table.Option) error {
 	return nil
 }
 
-func (m *mockTableClient) BulkUpsert(ctx context.Context, tableName string, data table.BulkUpsertData, opts ...table.Option) error {
+func (m *mockTableClient) BulkUpsert(_ context.Context, _ string, _ table.BulkUpsertData, _ ...table.Option) error {
 	return nil
 }
 
-func (m *mockTableClient) DescribeTable(ctx context.Context, path string, opts ...options.DescribeTableOption) (*options.Description, error) {
+func (m *mockTableClient) DescribeTable(_ context.Context, path string, _ ...options.DescribeTableOption) (*options.Description, error) {
 	if m.describeErr != nil {
 		return nil, m.describeErr
 	}
@@ -90,11 +90,21 @@ func (m *mockTableClient) DescribeTable(ctx context.Context, path string, opts .
 	return nil, errors.New("table not found: " + path)
 }
 
-func (m *mockTableClient) ReadRows(ctx context.Context, path string, keys types.Value, readRowOpts []options.ReadRowsOption, retryOptions ...table.Option) (result.Result, error) {
+func (m *mockTableClient) ReadRows(
+	_ context.Context,
+	_ string,
+	_ types.Value,
+	_ []options.ReadRowsOption,
+	_ ...table.Option,
+) (result.Result, error) {
 	return nil, nil
 }
 
-func newTestInspect(database string, schemeClient scheme.Client, tableClient table.Client) *inspect {
+func newTestInspect(
+	database string,
+	schemeClient scheme.Client,
+	tableClient table.Client,
+) *inspect {
 	return &inspect{
 		database:     database,
 		schemeClient: schemeClient,
