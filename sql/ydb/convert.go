@@ -145,7 +145,7 @@ func formatTimeType(t *schema.TimeType) (string, error) {
 // ParseType returns the schema.Type value represented by the given raw type.
 // The raw value is expected to follow the format of input for the CREATE TABLE statement.
 func ParseType(typ string) (schema.Type, error) {
-	colDesc, err := parseColumn(typ)
+	colDesc, err := parseColumn(strings.ToLower(typ))
 	if err != nil {
 		return nil, err
 	}
@@ -203,9 +203,9 @@ func parseColumn(typ string) (*columnDecscriptor, error) {
 func parseOptionalType(typ string) (*columnDecscriptor, string) {
 	colDesc := &columnDecscriptor{}
 
-	if strings.HasPrefix(typ, "Optional<") {
+	if strings.HasPrefix(typ, "optional<") {
 		colDesc.nullable = true
-		typ = strings.TrimPrefix(typ, "Optional<")
+		typ = strings.TrimPrefix(typ, "optional<")
 		typ = strings.TrimSuffix(typ, ">")
 	}
 
@@ -249,7 +249,7 @@ func columnType(colDesc *columnDecscriptor) (schema.Type, error) {
 		}
 
 		return &OptionalType{
-			T:         fmt.Sprintf("Optional<%s>", innerTypeStr),
+			T:         fmt.Sprintf("optional<%s>", innerTypeStr),
 			InnerType: innerType,
 		}, nil
 	}
