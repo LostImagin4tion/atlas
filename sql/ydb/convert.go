@@ -47,6 +47,8 @@ func FormatType(typ schema.Type) (string, error) {
 		formatted = TypeUUID
 	case *schema.TimeType:
 		formatted, err = formatTimeType(t)
+	case *schema.EnumType:
+		err = errors.New("ydb: Enum can't be used as column data types for tables")
 	case *schema.UnsupportedType:
 		err = fmt.Errorf("ydb: unsupported type: %q", t.T)
 	default:
