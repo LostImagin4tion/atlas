@@ -553,7 +553,7 @@ func TestPlanChanges_AddIndex(t *testing.T) {
 				Transactional: true,
 				Changes: []*migrate.Change{
 					{
-						Cmd:     "ALTER TABLE `users` ADD INDEX `idx_name` GLOBAL ON (`name`)",
+						Cmd:     "ALTER TABLE `users` ADD INDEX `idx_name` GLOBAL SYNC ON (`name`)",
 						Reverse: "ALTER TABLE `users` DROP INDEX `idx_name`",
 						Comment: `create index "idx_name" to table: "users"`,
 					},
@@ -576,7 +576,7 @@ func TestPlanChanges_AddIndex(t *testing.T) {
 				Transactional: true,
 				Changes: []*migrate.Change{
 					{
-						Cmd:     "ALTER TABLE `users` ADD INDEX `idx_name_email` GLOBAL ON (`name`, `email`)",
+						Cmd:     "ALTER TABLE `users` ADD INDEX `idx_name_email` GLOBAL SYNC ON (`name`, `email`)",
 						Reverse: "ALTER TABLE `users` DROP INDEX `idx_name_email`",
 						Comment: `create index "idx_name_email" to table: "users"`,
 					},
@@ -602,12 +602,12 @@ func TestPlanChanges_AddIndex(t *testing.T) {
 				Transactional: true,
 				Changes: []*migrate.Change{
 					{
-						Cmd:     "ALTER TABLE `users` ADD INDEX `idx_name` GLOBAL ON (`name`)",
+						Cmd:     "ALTER TABLE `users` ADD INDEX `idx_name` GLOBAL SYNC ON (`name`)",
 						Reverse: "ALTER TABLE `users` DROP INDEX `idx_name`",
 						Comment: `create index "idx_name" to table: "users"`,
 					},
 					{
-						Cmd:     "ALTER TABLE `users` ADD INDEX `idx_email` GLOBAL ON (`email`)",
+						Cmd:     "ALTER TABLE `users` ADD INDEX `idx_email` GLOBAL SYNC ON (`email`)",
 						Reverse: "ALTER TABLE `users` DROP INDEX `idx_email`",
 						Comment: `create index "idx_email" to table: "users"`,
 					},
@@ -665,7 +665,7 @@ func TestPlanChanges_DropIndex(t *testing.T) {
 				Changes: []*migrate.Change{
 					{
 						Cmd:     "ALTER TABLE `users` DROP INDEX `idx_name`",
-						Reverse: "ALTER TABLE `users` ADD INDEX `idx_name` GLOBAL ON (`name`)",
+						Reverse: "ALTER TABLE `users` ADD INDEX `idx_name` GLOBAL SYNC ON (`name`)",
 						Comment: `drop index "idx_name" from table: "users"`,
 					},
 				},
@@ -691,12 +691,12 @@ func TestPlanChanges_DropIndex(t *testing.T) {
 				Changes: []*migrate.Change{
 					{
 						Cmd:     "ALTER TABLE `users` DROP INDEX `idx_name`",
-						Reverse: "ALTER TABLE `users` ADD INDEX `idx_name` GLOBAL ON (`name`)",
+						Reverse: "ALTER TABLE `users` ADD INDEX `idx_name` GLOBAL SYNC ON (`name`)",
 						Comment: `drop index "idx_name" from table: "users"`,
 					},
 					{
 						Cmd:     "ALTER TABLE `users` DROP INDEX `idx_email`",
-						Reverse: "ALTER TABLE `users` ADD INDEX `idx_email` GLOBAL ON (`email`)",
+						Reverse: "ALTER TABLE `users` ADD INDEX `idx_email` GLOBAL SYNC ON (`email`)",
 						Comment: `drop index "idx_email" from table: "users"`,
 					},
 				},
@@ -754,11 +754,11 @@ func TestPlanChanges_ModifyIndex(t *testing.T) {
 				Changes: []*migrate.Change{
 					{
 						Cmd:     "ALTER TABLE `users` DROP INDEX `idx_name`",
-						Reverse: "ALTER TABLE `users` ADD INDEX `idx_name` GLOBAL ON (`name`)",
+						Reverse: "ALTER TABLE `users` ADD INDEX `idx_name` GLOBAL SYNC ON (`name`)",
 						Comment: `drop index "idx_name" from table: "users"`,
 					},
 					{
-						Cmd:     "ALTER TABLE `users` ADD INDEX `idx_name` GLOBAL ON (`name`, `email`)",
+						Cmd:     "ALTER TABLE `users` ADD INDEX `idx_name` GLOBAL SYNC ON (`name`, `email`)",
 						Reverse: "ALTER TABLE `users` DROP INDEX `idx_name`",
 						Comment: `create index "idx_name" to table: "users"`,
 					},

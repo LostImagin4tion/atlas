@@ -285,28 +285,28 @@ func (s *state) alterTable(t *schema.Table, changes []schema.Change) error {
 func (s *state) addIndexes(src schema.Change, t *schema.Table, indexes ...*schema.AddIndex) error {
 	for _, add := range indexes {
 		index := add.I
-		indexAttrs := YDBIndexAttributes{}
-		sqlx.Has(index.Attrs, &indexAttrs)
+		indexAttrs := IndexAttributes{}
+		hasAttrs := sqlx.Has(index.Attrs, &indexAttrs)
 
 		b := s.Build("ALTER TABLE").
 			Table(t).
 			P("ADD INDEX").
 			Ident(index.Name)
 
-		if indexAttrs.Global {
-			b.P("GLOBAL")
-		} else {
+		if hasAttrs && !indexAttrs.Global {
 			b.P("LOCAL")
+		} else {
+			b.P("GLOBAL")
 		}
 
 		if index.Unique {
 			b.P("UNIQUE")
 		}
 
-		if indexAttrs.Sync {
-			b.P("SYNC")
-		} else {
+		if hasAttrs && !indexAttrs.Sync {
 			b.P("ASYNC")
+		} else {
+			b.P("SYNC")
 		}
 
 		b.P("ON")
