@@ -70,6 +70,7 @@ func (p *planApply) ApplyChanges(
 // to be executed via scheme queries, not regular data queries.
 func (p *planApply) ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error) {
 	// Wrap context with scheme query mode for DDL execution
+	fmt.Println("HELLO WORLD EXEC CONTEXT")
 	schemeCtx := ydbSdk.WithQueryMode(ctx, ydbSdk.SchemeQueryMode)
 	return p.conn.ExecQuerier.ExecContext(schemeCtx, query, args...)
 }
