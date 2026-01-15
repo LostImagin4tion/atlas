@@ -23,7 +23,7 @@ func FormatType(typ schema.Type) (string, error) {
 	)
 
 	switch t := typ.(type) {
-	case OptionalType:
+	case *OptionalType:
 		formatted = t.T
 	case *schema.BoolType:
 		formatted = TypeBool
@@ -41,7 +41,7 @@ func FormatType(typ schema.Type) (string, error) {
 		formatted = TypeUtf8
 	case *schema.JSONType:
 		formatted, err = formatJSONType(t)
-	case YsonType:
+	case *YsonType:
 		formatted = t.T
 	case *schema.UUIDType:
 		formatted = TypeUUID
