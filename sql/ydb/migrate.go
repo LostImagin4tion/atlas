@@ -9,6 +9,7 @@ package ydb
 import (
 	"context"
 	"fmt"
+	"log"
 	"strings"
 
 	"ariga.io/atlas/sql/internal/sqlx"
@@ -63,6 +64,7 @@ func (p *planApply) ApplyChanges(
 ) error {
 	// YDB requires DDL statements to be executed via scheme queries
 	queryModeCtx := ydbSdk.WithQueryMode(ctx, ydbSdk.SchemeQueryMode)
+	log.Println("added query mode to ctx")
 	return sqlx.ApplyChanges(queryModeCtx, changes, p, opts...)
 }
 
