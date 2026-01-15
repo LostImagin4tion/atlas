@@ -14,12 +14,15 @@ import (
 	"ariga.io/atlas/sql/internal/sqlx"
 	"ariga.io/atlas/sql/migrate"
 	"ariga.io/atlas/sql/schema"
+	ydbSdk "github.com/ydb-platform/ydb-go-sdk/v3"
 )
 
 // DefaultPlan provides basic planning capabilities for YDB dialect.
 // Note, it is recommended to call Open, create a new Driver and use its
 // migrate.PlanApplier when a database connection is available.
-var DefaultPlan migrate.PlanApplier = &planApply{conn: &conn{ExecQuerier: sqlx.NoRows}}
+var DefaultPlan migrate.PlanApplier = &planApply{
+	conn: &conn{ExecQuerier: sqlx.NoRows},
+}
 
 // A planApply provides migration capabilities for schema elements.
 type planApply struct{ *conn }
@@ -58,7 +61,9 @@ func (p *planApply) ApplyChanges(
 	changes []schema.Change,
 	opts ...migrate.PlanOption,
 ) error {
-	return sqlx.ApplyChanges(ctx, changes, p, opts...)
+	// YDB requires DDL statements to be executed via scheme queries
+	queryModeCtx := ydbSdk.WithQueryMode(ctx, ydbSdk.SchemeQueryMode)
+	return sqlx.ApplyChanges(queryModeCtx, changes, p, opts...)
 }
 
 // state represents the state of a planning. It is not part of
