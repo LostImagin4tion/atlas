@@ -35,7 +35,7 @@ func (p *planApply) PlanChanges(
 		conn: p.conn,
 		Plan: migrate.Plan{
 			Name:          name,
-			Transactional: true,
+			Transactional: false,
 		},
 	}
 	for _, opt := range opts {

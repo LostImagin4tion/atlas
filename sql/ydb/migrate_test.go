@@ -38,7 +38,7 @@ func TestPlanChanges_AddTable(t *testing.T) {
 				},
 			},
 			wantPlan: &migrate.Plan{
-				Transactional: true,
+				Transactional: false,
 				Changes: []*migrate.Change{
 					{
 						Cmd:     "CREATE TABLE `users` (`id` int64 NOT NULL, `name` utf8 NOT NULL, PRIMARY KEY (`id`))",
@@ -64,7 +64,7 @@ func TestPlanChanges_AddTable(t *testing.T) {
 				},
 			},
 			wantPlan: &migrate.Plan{
-				Transactional: true,
+				Transactional: false,
 				Changes: []*migrate.Change{
 					{
 						Cmd:     "CREATE TABLE `users` (`id` int64 NOT NULL, `email` utf8, PRIMARY KEY (`id`))",
@@ -91,7 +91,7 @@ func TestPlanChanges_AddTable(t *testing.T) {
 				},
 			},
 			wantPlan: &migrate.Plan{
-				Transactional: true,
+				Transactional: false,
 				Changes: []*migrate.Change{
 					{
 						Cmd:     "CREATE TABLE `users` (`id` int64 NOT NULL, `name` utf8 NOT NULL, PRIMARY KEY (`id`), INDEX `idx_name` GLOBAL ON (`name`))",
@@ -118,7 +118,7 @@ func TestPlanChanges_AddTable(t *testing.T) {
 				},
 			},
 			wantPlan: &migrate.Plan{
-				Transactional: true,
+				Transactional: false,
 				Changes: []*migrate.Change{
 					{
 						Cmd:     "CREATE TABLE `order_items` (`order_id` int64 NOT NULL, `item_id` int64 NOT NULL, `quantity` int32 NOT NULL, PRIMARY KEY (`order_id`, `item_id`))",
@@ -159,7 +159,7 @@ func TestPlanChanges_AddTable(t *testing.T) {
 				},
 			},
 			wantPlan: &migrate.Plan{
-				Transactional: true,
+				Transactional: false,
 				Changes: []*migrate.Change{
 					{
 						Cmd:     "CREATE TABLE `data` (`id` int64 NOT NULL, `flag` bool NOT NULL, `price` decimal(10,2) NOT NULL, `timestamp` timestamp NOT NULL, `data` json NOT NULL, PRIMARY KEY (`id`))",
@@ -212,7 +212,7 @@ func TestPlanChanges_DropTable(t *testing.T) {
 				},
 			},
 			wantPlan: &migrate.Plan{
-				Transactional: true,
+				Transactional: false,
 				Changes: []*migrate.Change{
 					{
 						Cmd:     "DROP TABLE `users`",
@@ -238,7 +238,7 @@ func TestPlanChanges_DropTable(t *testing.T) {
 				},
 			},
 			wantPlan: &migrate.Plan{
-				Transactional: true,
+				Transactional: false,
 				Changes: []*migrate.Change{
 					{
 						Cmd:     "DROP TABLE IF EXISTS `users`",
@@ -361,7 +361,7 @@ func TestPlanChanges_AddColumn(t *testing.T) {
 				},
 			},
 			wantPlan: &migrate.Plan{
-				Transactional: true,
+				Transactional: false,
 				Changes: []*migrate.Change{
 					{
 						Cmd:     "ALTER TABLE `users` ADD COLUMN `email` utf8 NOT NULL",
@@ -384,7 +384,7 @@ func TestPlanChanges_AddColumn(t *testing.T) {
 				},
 			},
 			wantPlan: &migrate.Plan{
-				Transactional: true,
+				Transactional: false,
 				Changes: []*migrate.Change{
 					{
 						Cmd:     "ALTER TABLE `users` ADD COLUMN `bio` utf8",
@@ -410,7 +410,7 @@ func TestPlanChanges_AddColumn(t *testing.T) {
 				},
 			},
 			wantPlan: &migrate.Plan{
-				Transactional: true,
+				Transactional: false,
 				Changes: []*migrate.Change{
 					{
 						Cmd:     "ALTER TABLE `users` ADD COLUMN `email` utf8 NOT NULL, ADD COLUMN `age` int32 NOT NULL",
@@ -467,7 +467,7 @@ func TestPlanChanges_DropColumn(t *testing.T) {
 				},
 			},
 			wantPlan: &migrate.Plan{
-				Transactional: true,
+				Transactional: false,
 				Changes: []*migrate.Change{
 					{
 						Cmd:     "ALTER TABLE `users` DROP COLUMN `email`",
@@ -493,7 +493,7 @@ func TestPlanChanges_DropColumn(t *testing.T) {
 				},
 			},
 			wantPlan: &migrate.Plan{
-				Transactional: true,
+				Transactional: false,
 				Changes: []*migrate.Change{
 					{
 						Cmd:     "ALTER TABLE `users` DROP COLUMN `name`, DROP COLUMN `email`",
@@ -550,7 +550,7 @@ func TestPlanChanges_AddIndex(t *testing.T) {
 				},
 			},
 			wantPlan: &migrate.Plan{
-				Transactional: true,
+				Transactional: false,
 				Changes: []*migrate.Change{
 					{
 						Cmd:     "ALTER TABLE `users` ADD INDEX `idx_name` GLOBAL SYNC ON (`name`)",
@@ -573,7 +573,7 @@ func TestPlanChanges_AddIndex(t *testing.T) {
 				},
 			},
 			wantPlan: &migrate.Plan{
-				Transactional: true,
+				Transactional: false,
 				Changes: []*migrate.Change{
 					{
 						Cmd:     "ALTER TABLE `users` ADD INDEX `idx_name_email` GLOBAL SYNC ON (`name`, `email`)",
@@ -599,7 +599,7 @@ func TestPlanChanges_AddIndex(t *testing.T) {
 				},
 			},
 			wantPlan: &migrate.Plan{
-				Transactional: true,
+				Transactional: false,
 				Changes: []*migrate.Change{
 					{
 						Cmd:     "ALTER TABLE `users` ADD INDEX `idx_name` GLOBAL SYNC ON (`name`)",
@@ -661,7 +661,7 @@ func TestPlanChanges_DropIndex(t *testing.T) {
 				},
 			},
 			wantPlan: &migrate.Plan{
-				Transactional: true,
+				Transactional: false,
 				Changes: []*migrate.Change{
 					{
 						Cmd:     "ALTER TABLE `users` DROP INDEX `idx_name`",
@@ -687,7 +687,7 @@ func TestPlanChanges_DropIndex(t *testing.T) {
 				},
 			},
 			wantPlan: &migrate.Plan{
-				Transactional: true,
+				Transactional: false,
 				Changes: []*migrate.Change{
 					{
 						Cmd:     "ALTER TABLE `users` DROP INDEX `idx_name`",
@@ -750,7 +750,7 @@ func TestPlanChanges_ModifyIndex(t *testing.T) {
 				},
 			},
 			wantPlan: &migrate.Plan{
-				Transactional: true,
+				Transactional: false,
 				Changes: []*migrate.Change{
 					{
 						Cmd:     "ALTER TABLE `users` DROP INDEX `idx_name`",
@@ -813,7 +813,7 @@ func TestPlanChanges_RenameIndex(t *testing.T) {
 				},
 			},
 			wantPlan: &migrate.Plan{
-				Transactional: true,
+				Transactional: false,
 				Changes: []*migrate.Change{
 					{
 						Cmd:     "ALTER TABLE `users` RENAME INDEX `idx_name` TO `idx_user_name`",
