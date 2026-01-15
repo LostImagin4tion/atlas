@@ -21,7 +21,8 @@ import (
 
 // inspect provides a YDB implementation for schema.Inspector.
 type inspect struct {
-	database     string
+	*conn
+
 	schemeClient scheme.Client
 	tableClient  table.Client
 }
@@ -29,7 +30,7 @@ type inspect struct {
 // newInspect creates a new inspect from conn.
 func newInspect(c *conn) *inspect {
 	return &inspect{
-		database:     c.database,
+		conn:         c,
 		schemeClient: c.nativeDriver.Scheme(),
 		tableClient:  c.nativeDriver.Table(),
 	}

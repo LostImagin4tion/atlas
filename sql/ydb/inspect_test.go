@@ -106,7 +106,7 @@ func newTestInspect(
 	tableClient table.Client,
 ) *inspect {
 	return &inspect{
-		database:     database,
+		conn:         &conn{database: database},
 		schemeClient: schemeClient,
 		tableClient:  tableClient,
 	}

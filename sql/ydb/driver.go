@@ -106,6 +106,7 @@ func Open(nativeDriver *ydbSdk.Driver, sqlDriver *sql.DB) (migrate.Driver, error
 	c := &conn{
 		ExecQuerier:  sqlDriver,
 		nativeDriver: nativeDriver,
+		database:     nativeDriver.Name(),
 	}
 
 	rows, err := sqlDriver.QueryContext(context.Background(), "SELECT version()")
