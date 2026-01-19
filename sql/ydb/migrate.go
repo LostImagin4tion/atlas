@@ -290,30 +290,30 @@ func (s *state) addIndexes(src schema.Change, t *schema.Table, indexes ...*schem
 		indexAttrs := IndexAttributes{}
 		hasAttrs := sqlx.Has(index.Attrs, &indexAttrs)
 
-		b := s.Build("ALTER TABLE").
+		builder := s.Build("ALTER TABLE").
 			Table(t).
 			P("ADD INDEX").
-			Ident(index.Name)
-
-		if hasAttrs && !indexAttrs.Global {
-			b.P("LOCAL")
-		} else {
-			b.P("GLOBAL")
-		}
+			Ident(index.Name).
+			P("GLOBAL")
 
 		if index.Unique {
-			b.P("UNIQUE")
+			builder.P("UNIQUE")
 		}
 
-		if hasAttrs && !indexAttrs.Sync {
-			b.P("ASYNC")
+		if hasAttrs && indexAttrs.Async {
+			builder.P("ASYNC")
 		} else {
-			b.P("SYNC")
+			builder.P("SYNC")
 		}
 
-		b.P("ON")
+		builder.P("ON")
 
-		s.indexParts(b, index.Parts)
+		s.indexParts(builder, index.Parts)
+
+		if hasAttrs && len(indexAttrs.CoverColumns) > 0 {
+			builder.P("COVER")
+			s.indexCoverColumns(builder, indexAttrs.CoverColumns)
+		}
 
 		reverseOp := s.Build("ALTER TABLE").
 			Table(t).
@@ -322,7 +322,7 @@ func (s *state) addIndexes(src schema.Change, t *schema.Table, indexes ...*schem
 			String()
 
 		s.append(&migrate.Change{
-			Cmd:     b.String(),
+			Cmd:     builder.String(),
 			Source:  src,
 			Comment: fmt.Sprintf("create index %q to table: %q", index.Name, t.Name),
 			Reverse: reverseOp,
@@ -396,15 +396,21 @@ func (s *state) indexDef(b *sqlx.Builder, idx *schema.Index) {
 }
 
 // indexParts writes the index parts (columns) to the builder.
-func (s *state) indexParts(b *sqlx.Builder, parts []*schema.IndexPart) {
-	b.Wrap(func(b *sqlx.Builder) {
-		b.MapComma(parts, func(i int, b *sqlx.Builder) {
-			switch part := parts[i]; {
-			case part.C != nil:
-				b.Ident(part.C.Name)
-			case part.X != nil:
-				b.WriteString(part.X.(*schema.RawExpr).X)
+func (s *state) indexParts(builder *sqlx.Builder, parts []*schema.IndexPart) {
+	builder.Wrap(func(b *sqlx.Builder) {
+		b.MapComma(parts, func(i int, builder *sqlx.Builder) {
+			if parts[i].C != nil {
+				builder.Ident(parts[i].C.Name)
 			}
+		})
+	})
+}
+
+// indexCoverColumns writes the cover columns to the builder.
+func (s *state) indexCoverColumns(builder *sqlx.Builder, coverColumns []string) {
+	builder.Wrap(func(b *sqlx.Builder) {
+		b.MapComma(coverColumns, func(i int, builder *sqlx.Builder) {
+			builder.Ident(coverColumns[i])
 		})
 	})
 }
