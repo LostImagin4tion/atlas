@@ -584,6 +584,103 @@ func TestPlanChanges_AddIndex(t *testing.T) {
 			},
 		},
 		{
+			name: "add async index",
+			changes: []schema.Change{
+				&schema.ModifyTable{
+					T: usersTable,
+					Changes: []schema.Change{
+						&schema.AddIndex{
+							I: func() *schema.Index {
+								idx := schema.NewIndex("idx_name_async").AddColumns(usersTable.Columns[1])
+								idx.Attrs = append(idx.Attrs, &IndexAttributes{Async: true})
+								return idx
+							}(),
+						},
+					},
+				},
+			},
+			wantPlan: &migrate.Plan{
+				Transactional: false,
+				Changes: []*migrate.Change{
+					{
+						Cmd:     "ALTER TABLE `users` ADD INDEX `idx_name_async` GLOBAL ASYNC ON (`name`)",
+						Reverse: "ALTER TABLE `users` DROP INDEX `idx_name_async`",
+						Comment: `create index "idx_name_async" to table: "users"`,
+					},
+				},
+			},
+		},
+		{
+			name: "add index with cover columns",
+			changes: []schema.Change{
+				&schema.ModifyTable{
+					T: usersTable,
+					Changes: []schema.Change{
+						&schema.AddIndex{
+							I: func() *schema.Index {
+								idx := schema.NewIndex("idx_name_cover").AddColumns(usersTable.Columns[1])
+								idx.Attrs = append(
+									idx.Attrs,
+									&IndexAttributes{
+										CoverColumns: []*schema.Column{
+											{Name: "email"},
+										},
+									},
+								)
+								return idx
+							}(),
+						},
+					},
+				},
+			},
+			wantPlan: &migrate.Plan{
+				Transactional: false,
+				Changes: []*migrate.Change{
+					{
+						Cmd:     "ALTER TABLE `users` ADD INDEX `idx_name_cover` GLOBAL SYNC ON (`name`) COVER (`email`)",
+						Reverse: "ALTER TABLE `users` DROP INDEX `idx_name_cover`",
+						Comment: `create index "idx_name_cover" to table: "users"`,
+					},
+				},
+			},
+		},
+		{
+			name: "add async index with cover columns",
+			changes: []schema.Change{
+				&schema.ModifyTable{
+					T: usersTable,
+					Changes: []schema.Change{
+						&schema.AddIndex{
+							I: func() *schema.Index {
+								idx := schema.NewIndex("idx_name_async_cover").AddColumns(usersTable.Columns[1])
+								idx.Attrs = append(
+									idx.Attrs,
+									&IndexAttributes{
+										Async: true,
+										CoverColumns: []*schema.Column{
+											{Name: "email"},
+											{Name: "id"},
+										},
+									},
+								)
+								return idx
+							}(),
+						},
+					},
+				},
+			},
+			wantPlan: &migrate.Plan{
+				Transactional: false,
+				Changes: []*migrate.Change{
+					{
+						Cmd:     "ALTER TABLE `users` ADD INDEX `idx_name_async_cover` GLOBAL ASYNC ON (`name`) COVER (`email`, `id`)",
+						Reverse: "ALTER TABLE `users` DROP INDEX `idx_name_async_cover`",
+						Comment: `create index "idx_name_async_cover" to table: "users"`,
+					},
+				},
+			},
+		},
+		{
 			name: "add multiple indexes",
 			changes: []schema.Change{
 				&schema.ModifyTable{
@@ -698,6 +795,67 @@ func TestPlanChanges_DropIndex(t *testing.T) {
 						Cmd:     "ALTER TABLE `users` DROP INDEX `idx_email`",
 						Reverse: "ALTER TABLE `users` ADD INDEX `idx_email` GLOBAL SYNC ON (`email`)",
 						Comment: `drop index "idx_email" from table: "users"`,
+					},
+				},
+			},
+		},
+		{
+			name: "drop async index",
+			changes: []schema.Change{
+				&schema.ModifyTable{
+					T: usersTable,
+					Changes: []schema.Change{
+						&schema.DropIndex{
+							I: func() *schema.Index {
+								idx := schema.NewIndex("idx_name_async").AddColumns(usersTable.Columns[1])
+								idx.Attrs = append(idx.Attrs, &IndexAttributes{Async: true})
+								return idx
+							}(),
+						},
+					},
+				},
+			},
+			wantPlan: &migrate.Plan{
+				Transactional: false,
+				Changes: []*migrate.Change{
+					{
+						Cmd:     "ALTER TABLE `users` DROP INDEX `idx_name_async`",
+						Reverse: "ALTER TABLE `users` ADD INDEX `idx_name_async` GLOBAL ASYNC ON (`name`)",
+						Comment: `drop index "idx_name_async" from table: "users"`,
+					},
+				},
+			},
+		},
+		{
+			name: "drop index with cover columns",
+			changes: []schema.Change{
+				&schema.ModifyTable{
+					T: usersTable,
+					Changes: []schema.Change{
+						&schema.DropIndex{
+							I: func() *schema.Index {
+								idx := schema.NewIndex("idx_name_cover").AddColumns(usersTable.Columns[1])
+								idx.Attrs = append(
+									idx.Attrs,
+									&IndexAttributes{
+										CoverColumns: []*schema.Column{
+											{Name: "email"},
+										},
+									},
+								)
+								return idx
+							}(),
+						},
+					},
+				},
+			},
+			wantPlan: &migrate.Plan{
+				Transactional: false,
+				Changes: []*migrate.Change{
+					{
+						Cmd:     "ALTER TABLE `users` DROP INDEX `idx_name_cover`",
+						Reverse: "ALTER TABLE `users` ADD INDEX `idx_name_cover` GLOBAL SYNC ON (`name`) COVER (`email`)",
+						Comment: `drop index "idx_name_cover" from table: "users"`,
 					},
 				},
 			},
