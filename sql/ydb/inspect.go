@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"strings"
 
 	"ariga.io/atlas/sql/internal/sqlx"
 	"ariga.io/atlas/sql/schema"
@@ -138,7 +139,11 @@ func (i *inspect) inspectTables(
 			return err
 		}
 		for _, table := range schema.Tables {
-			tableDesc, err := i.tableClient.DescribeTable(ctx, table.Name)
+			// table.Name is a relative path (e.g., "users" or "dir1/users"),
+			// but DescribeTable needs the full path (e.g., "/local/users").
+			// schema.Name contains the database path (e.g., "/local").
+			fullPath := schema.Name + "/" + table.Name
+			tableDesc, err := i.tableClient.DescribeTable(ctx, fullPath)
 			if err != nil {
 				return fmt.Errorf("ydb: failed describe table: %v", err)
 			}
@@ -182,12 +187,15 @@ func (i *inspect) tables(ctx context.Context, s *schema.Schema, opts *schema.Ins
 
 		switch currEntry.Type {
 		case scheme.EntryTable:
+			relativePath := strings.TrimPrefix(currEntry.fullPath, rootPath+"/")
+
 			shouldAdd := opts == nil ||
 				len(opts.Tables) == 0 ||
+				slices.Contains(opts.Tables, relativePath) ||
 				slices.Contains(opts.Tables, currEntry.fullPath)
 
 			if shouldAdd {
-				t := schema.NewTable(currEntry.fullPath)
+				t := schema.NewTable(relativePath)
 				s.AddTables(t)
 			}
 

@@ -74,7 +74,6 @@ func opener(ctx context.Context, dsn *url.URL) (*sqlclient.Client, error) {
 	conn, err := ydbSdk.Connector(
 		nativeDriver,
 		ydbSdk.WithAutoDeclare(),
-		ydbSdk.WithTablePathPrefix(nativeDriver.Name()),
 		ydbSdk.WithQueryService(true),
 	)
 	if err != nil {

@@ -97,12 +97,24 @@ func (s *state) plan(changes []schema.Change) error {
 	return nil
 }
 
+// tablePath returns the full YDB path for a table.
+func (s *state) tablePath(t *schema.Table) string {
+	if s.database == "" {
+		return t.Name
+	}
+	return s.database + "/" + t.Name
+}
+
 // addTable builds and executes the query for creating a table in a schema.
 func (s *state) addTable(addTable *schema.AddTable) error {
 	var errs []string
 	builder := s.Build("CREATE TABLE")
 
-	builder.Table(addTable.T)
+	if sqlx.Has(addTable.Extra, &schema.IfNotExists{}) {
+		builder.P("IF NOT EXISTS")
+	}
+
+	builder.Ident(s.tablePath(addTable.T))
 	builder.WrapIndent(func(b *sqlx.Builder) {
 		b.MapIndent(addTable.T.Columns, func(i int, b *sqlx.Builder) {
 			if err := s.column(b, addTable.T.Columns[i]); err != nil {
@@ -127,7 +139,7 @@ func (s *state) addTable(addTable *schema.AddTable) error {
 	}
 
 	reverse := s.Build("DROP TABLE").
-		Table(addTable.T).
+		Ident(s.tablePath(addTable.T)).
 		String()
 
 	s.append(&migrate.Change{
@@ -154,7 +166,7 @@ func (s *state) dropTable(drop *schema.DropTable) error {
 	if sqlx.Has(drop.Extra, &schema.IfExists{}) {
 		builder.P("IF EXISTS")
 	}
-	builder.Table(drop.T)
+	builder.Ident(s.tablePath(drop.T))
 
 	// The reverse of 'DROP TABLE' might be a multi-statement operation
 	reverse := func() any {
@@ -235,7 +247,7 @@ func (s *state) alterTable(t *schema.Table, changes []schema.Change) error {
 	var reverse []schema.Change
 
 	buildFunc := func(changes []schema.Change) (string, error) {
-		b := s.Build("ALTER TABLE").Table(t)
+		b := s.Build("ALTER TABLE").Ident(s.tablePath(t))
 
 		err := b.MapCommaErr(changes, func(i int, builder *sqlx.Builder) error {
 			switch change := changes[i].(type) {
@@ -291,7 +303,7 @@ func (s *state) addIndexes(src schema.Change, t *schema.Table, indexes ...*schem
 		hasAttrs := sqlx.Has(index.Attrs, &indexAttrs)
 
 		builder := s.Build("ALTER TABLE").
-			Table(t).
+			Ident(s.tablePath(t)).
 			P("ADD INDEX").
 			Ident(index.Name).
 			P("GLOBAL")
@@ -316,7 +328,7 @@ func (s *state) addIndexes(src schema.Change, t *schema.Table, indexes ...*schem
 		}
 
 		reverseOp := s.Build("ALTER TABLE").
-			Table(t).
+			Ident(s.tablePath(t)).
 			P("DROP INDEX").
 			Ident(index.Name).
 			String()
@@ -359,8 +371,8 @@ func (s *state) renameTable(c *schema.RenameTable) {
 	s.append(&migrate.Change{
 		Source:  c,
 		Comment: fmt.Sprintf("rename a table from %q to %q", c.From.Name, c.To.Name),
-		Cmd:     s.Build("ALTER TABLE").Table(c.From).P("RENAME TO").Table(c.To).String(),
-		Reverse: s.Build("ALTER TABLE").Table(c.To).P("RENAME TO").Table(c.From).String(),
+		Cmd:     s.Build("ALTER TABLE").Ident(s.tablePath(c.From)).P("RENAME TO").Ident(s.tablePath(c.To)).String(),
+		Reverse: s.Build("ALTER TABLE").Ident(s.tablePath(c.To)).P("RENAME TO").Ident(s.tablePath(c.From)).String(),
 	})
 }
 
@@ -369,8 +381,8 @@ func (s *state) renameIndex(modify *schema.ModifyTable, c *schema.RenameIndex) {
 	s.append(&migrate.Change{
 		Source:  c,
 		Comment: fmt.Sprintf("rename an index from %q to %q", c.From.Name, c.To.Name),
-		Cmd:     s.Build("ALTER TABLE").Table(modify.T).P("RENAME INDEX").Ident(c.From.Name).P("TO").Ident(c.To.Name).String(),
-		Reverse: s.Build("ALTER TABLE").Table(modify.T).P("RENAME INDEX").Ident(c.To.Name).P("TO").Ident(c.From.Name).String(),
+		Cmd:     s.Build("ALTER TABLE").Ident(s.tablePath(modify.T)).P("RENAME INDEX").Ident(c.From.Name).P("TO").Ident(c.To.Name).String(),
+		Reverse: s.Build("ALTER TABLE").Ident(s.tablePath(modify.T)).P("RENAME INDEX").Ident(c.To.Name).P("TO").Ident(c.From.Name).String(),
 	})
 }
 

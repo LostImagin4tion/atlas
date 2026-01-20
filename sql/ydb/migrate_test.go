@@ -141,6 +141,32 @@ func TestPlanChanges_AddTable(t *testing.T) {
 			wantErr: true,
 		},
 		{
+			name: "create table if not exists",
+			changes: []schema.Change{
+				&schema.AddTable{
+					T: schema.NewTable("users").
+						AddColumns(
+							schema.NewColumn("id").SetType(&schema.IntegerType{T: TypeInt64}),
+							schema.NewColumn("name").SetType(&schema.StringType{T: TypeUtf8}),
+						).
+						SetPrimaryKey(schema.NewPrimaryKey(
+							schema.NewColumn("id").SetType(&schema.IntegerType{T: TypeInt64}),
+						)),
+					Extra: []schema.Clause{&schema.IfNotExists{}},
+				},
+			},
+			wantPlan: &migrate.Plan{
+				Transactional: false,
+				Changes: []*migrate.Change{
+					{
+						Cmd:     "CREATE TABLE IF NOT EXISTS `users` (`id` int64 NOT NULL, `name` utf8 NOT NULL, PRIMARY KEY (`id`))",
+						Reverse: "DROP TABLE `users`",
+						Comment: `create "users" table`,
+					},
+				},
+			},
+		},
+		{
 			name: "table with various types",
 			changes: []schema.Change{
 				&schema.AddTable{
