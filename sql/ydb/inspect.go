@@ -293,8 +293,9 @@ func (i *inspect) indexes(
 	// secondary indexes
 	for _, idx := range tableDesc.Indexes {
 		atlasIdx := &schema.Index{
-			Name:  idx.Name,
-			Table: table,
+			Name:   idx.Name,
+			Table:  table,
+			Unique: idx.Type == options.GlobalUniqueIndex(),
 		}
 
 		for _, columnName := range idx.IndexColumns {
@@ -311,6 +312,7 @@ func (i *inspect) indexes(
 		indexAttrs := &IndexAttributes{
 			Async: idx.Type == options.GlobalAsyncIndex(),
 		}
+
 		for _, dataCol := range idx.DataColumns {
 			column, ok := table.Column(dataCol)
 			if !ok {
@@ -318,9 +320,8 @@ func (i *inspect) indexes(
 			}
 			indexAttrs.CoverColumns = append(indexAttrs.CoverColumns, column)
 		}
-		if indexAttrs.Async || len(indexAttrs.CoverColumns) > 0 {
-			atlasIdx.Attrs = append(atlasIdx.Attrs, indexAttrs)
-		}
+
+		atlasIdx.Attrs = append(atlasIdx.Attrs, indexAttrs)
 
 		table.AddIndexes(atlasIdx)
 	}
