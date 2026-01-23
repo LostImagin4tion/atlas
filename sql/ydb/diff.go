@@ -130,22 +130,29 @@ func (d *diff) defaultChanged(from *schema.Column, to *schema.Column) bool {
 // IndexAttrChanged reports if the index attributes were changed.
 func (*diff) IndexAttrChanged(from, to []schema.Attr) bool {
 	var fromAttrs, toAttrs IndexAttributes
-	sqlx.Has(from, &fromAttrs)
-	sqlx.Has(to, &toAttrs)
+	hasFrom := sqlx.Has(from, &fromAttrs)
+	hasTo := sqlx.Has(to, &toAttrs)
+
+	fmt.Printf("[DIFF] IndexAttrChanged: hasFrom=%v hasTo=%v fromAsync=%v toAsync=%v fromCover=%d toCover=%d\n",
+		hasFrom, hasTo, fromAttrs.Async, toAttrs.Async, len(fromAttrs.CoverColumns), len(toAttrs.CoverColumns))
 
 	if fromAttrs.Async != toAttrs.Async {
+		fmt.Printf("[DIFF] IndexAttrChanged: Async changed %v -> %v\n", fromAttrs.Async, toAttrs.Async)
 		return true
 	}
 
 	if len(fromAttrs.CoverColumns) != len(toAttrs.CoverColumns) {
+		fmt.Printf("[DIFF] IndexAttrChanged: CoverColumns count changed %d -> %d\n", len(fromAttrs.CoverColumns), len(toAttrs.CoverColumns))
 		return true
 	}
 
 	for i := range fromAttrs.CoverColumns {
 		if fromAttrs.CoverColumns[i].Name != toAttrs.CoverColumns[i].Name {
+			fmt.Printf("[DIFF] IndexAttrChanged: CoverColumn[%d] changed %q -> %q\n", i, fromAttrs.CoverColumns[i].Name, toAttrs.CoverColumns[i].Name)
 			return true
 		}
 	}
+	fmt.Printf("[DIFF] IndexAttrChanged: no change\n")
 	return false
 }
 

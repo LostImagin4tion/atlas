@@ -292,10 +292,17 @@ func (i *inspect) indexes(
 
 	// secondary indexes
 	for _, idx := range tableDesc.Indexes {
+		isUnique := idx.Type == options.GlobalUniqueIndex()
+		isAsync := idx.Type == options.GlobalAsyncIndex()
+
+		fmt.Printf("[INSPECT] index=%q type=%v isUnique=%v isAsync=%v (GlobalUniqueIndex=%v, GlobalAsyncIndex=%v, GlobalIndex=%v)\n",
+			idx.Name, idx.Type, isUnique, isAsync,
+			options.GlobalUniqueIndex(), options.GlobalAsyncIndex(), options.GlobalIndex())
+
 		atlasIdx := &schema.Index{
 			Name:   idx.Name,
 			Table:  table,
-			Unique: idx.Type == options.GlobalUniqueIndex(),
+			Unique: isUnique,
 		}
 
 		for _, columnName := range idx.IndexColumns {
@@ -310,7 +317,7 @@ func (i *inspect) indexes(
 		}
 
 		indexAttrs := &IndexAttributes{
-			Async: idx.Type == options.GlobalAsyncIndex(),
+			Async: isAsync,
 		}
 
 		for _, dataCol := range idx.DataColumns {
@@ -322,6 +329,9 @@ func (i *inspect) indexes(
 		}
 
 		atlasIdx.Attrs = append(atlasIdx.Attrs, indexAttrs)
+
+		fmt.Printf("[INSPECT] index=%q final: Unique=%v Async=%v CoverColumns=%d\n",
+			idx.Name, atlasIdx.Unique, indexAttrs.Async, len(indexAttrs.CoverColumns))
 
 		table.AddIndexes(atlasIdx)
 	}
