@@ -308,6 +308,20 @@ func (i *inspect) indexes(
 			})
 		}
 
+		indexAttrs := &IndexAttributes{
+			Async: idx.Type == options.GlobalAsyncIndex(),
+		}
+		for _, dataCol := range idx.DataColumns {
+			column, ok := table.Column(dataCol)
+			if !ok {
+				return fmt.Errorf("ydb: cover column %q not found in table %q", dataCol, table.Name)
+			}
+			indexAttrs.CoverColumns = append(indexAttrs.CoverColumns, column)
+		}
+		if indexAttrs.Async || len(indexAttrs.CoverColumns) > 0 {
+			atlasIdx.Attrs = append(atlasIdx.Attrs, indexAttrs)
+		}
+
 		table.AddIndexes(atlasIdx)
 	}
 

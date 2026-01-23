@@ -129,25 +129,26 @@ func (d *diff) defaultChanged(from *schema.Column, to *schema.Column) bool {
 
 // IndexAttrChanged reports if the index attributes were changed.
 func (*diff) IndexAttrChanged(from, to []schema.Attr) bool {
-	var fromA, toA IndexAttributes
-	fromHas, toHas := sqlx.Has(from, &fromA), sqlx.Has(to, &toA)
-	if fromHas != toHas {
+	var fromAttrs, toAttrs IndexAttributes
+	hasFrom, hasTo := sqlx.Has(from, &fromAttrs), sqlx.Has(to, &toAttrs)
+
+	if hasFrom != hasTo {
 		return true
 	}
-	if !fromHas {
+	if !hasFrom {
 		return false
 	}
 
-	if fromA.Async != toA.Async {
+	if fromAttrs.Async != toAttrs.Async {
 		return true
 	}
 
-	if len(fromA.CoverColumns) != len(toA.CoverColumns) {
+	if len(fromAttrs.CoverColumns) != len(toAttrs.CoverColumns) {
 		return true
 	}
 
-	for i := range fromA.CoverColumns {
-		if fromA.CoverColumns[i].Name != toA.CoverColumns[i].Name {
+	for i := range fromAttrs.CoverColumns {
+		if fromAttrs.CoverColumns[i].Name != toAttrs.CoverColumns[i].Name {
 			return true
 		}
 	}
