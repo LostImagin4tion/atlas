@@ -40,7 +40,10 @@ func newInspect(c *conn) *inspect {
 var _ schema.Inspector = (*inspect)(nil)
 
 // InspectRealm returns schema descriptions of all resources in the given realm.
-func (i *inspect) InspectRealm(ctx context.Context, opts *schema.InspectRealmOption) (*schema.Realm, error) {
+func (i *inspect) InspectRealm(
+	ctx context.Context,
+	opts *schema.InspectRealmOption,
+) (*schema.Realm, error) {
 	schemas, err := i.schemas(ctx, opts)
 	if err != nil {
 		return nil, err
@@ -104,7 +107,10 @@ func (i *inspect) InspectSchema(
 }
 
 // schemas returns the list of schemas in the database.
-func (i *inspect) schemas(ctx context.Context, opts *schema.InspectRealmOption) ([]*schema.Schema, error) {
+func (i *inspect) schemas(
+	ctx context.Context,
+	opts *schema.InspectRealmOption,
+) ([]*schema.Schema, error) {
 	var names []string
 	if opts != nil && len(opts.Schemas) > 0 && opts.Schemas[0] != "" {
 		names = opts.Schemas
@@ -139,10 +145,8 @@ func (i *inspect) inspectTables(
 			return err
 		}
 		for _, table := range schema.Tables {
-			// table.Name is a relative path (e.g., "users" or "dir1/users"),
-			// but DescribeTable needs the full path (e.g., "/local/users").
-			// schema.Name contains the database path (e.g., "/local").
 			fullPath := schema.Name + "/" + table.Name
+
 			tableDesc, err := i.tableClient.DescribeTable(ctx, fullPath)
 			if err != nil {
 				return fmt.Errorf("ydb: failed describe table: %v", err)
@@ -165,8 +169,12 @@ type entryWithPath struct {
 }
 
 // tables queries and populates the tables in the schema.
-func (i *inspect) tables(ctx context.Context, s *schema.Schema, opts *schema.InspectOptions) error {
-	rootPath := s.Name
+func (i *inspect) tables(
+	ctx context.Context,
+	schem *schema.Schema,
+	opts *schema.InspectOptions,
+) error {
+	rootPath := schem.Name
 	rootDir, err := i.schemeClient.ListDirectory(ctx, rootPath)
 	if err != nil {
 		return fmt.Errorf("ydb: failed list directory: %v", err)
@@ -196,7 +204,7 @@ func (i *inspect) tables(ctx context.Context, s *schema.Schema, opts *schema.Ins
 
 			if shouldAdd {
 				t := schema.NewTable(relativePath)
-				s.AddTables(t)
+				schem.AddTables(t)
 			}
 
 		case scheme.EntryDirectory:

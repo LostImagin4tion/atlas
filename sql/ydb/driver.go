@@ -64,9 +64,9 @@ func init() {
 }
 
 func opener(ctx context.Context, dsn *url.URL) (*sqlclient.Client, error) {
-	parser := parser{}.ParseURL(dsn)
+	url := parser{}.ParseURL(dsn)
 
-	nativeDriver, err := ydbSdk.Open(ctx, parser.DSN)
+	nativeDriver, err := ydbSdk.Open(ctx, url.DSN)
 	if err != nil {
 		return nil, err
 	}
@@ -81,7 +81,7 @@ func opener(ctx context.Context, dsn *url.URL) (*sqlclient.Client, error) {
 	}
 
 	sqlDriver := sql.OpenDB(conn)
-	drv, err := Open(nativeDriver, sqlDriver)
+	migrateDriver, err := Open(nativeDriver, sqlDriver)
 	if err != nil {
 		if cerr := sqlDriver.Close(); cerr != nil {
 			err = fmt.Errorf("%w: %v", err, cerr)
@@ -89,15 +89,15 @@ func opener(ctx context.Context, dsn *url.URL) (*sqlclient.Client, error) {
 		return nil, err
 	}
 
-	if d, ok := drv.(*Driver); ok {
-		d.database = parser.Schema
+	if ydbDriver, ok := migrateDriver.(*Driver); ok {
+		ydbDriver.database = url.Schema
 	}
 
 	return &sqlclient.Client{
 		Name:   DriverName,
 		DB:     sqlDriver,
-		URL:    parser,
-		Driver: drv,
+		URL:    url,
+		Driver: migrateDriver,
 	}, nil
 }
 

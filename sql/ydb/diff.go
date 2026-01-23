@@ -17,7 +17,9 @@ import (
 // DefaultDiff provides basic diffing capabilities for YDB dialect.
 // Note, it is recommended to call Open, create a new Driver and use its
 // Differ when a database connection is available.
-var DefaultDiff schema.Differ = &sqlx.Diff{DiffDriver: &diff{&conn{ExecQuerier: sqlx.NoRows}}}
+var DefaultDiff schema.Differ = &sqlx.Diff{
+	DiffDriver: &diff{&conn{ExecQuerier: sqlx.NoRows}},
+}
 
 // A diff provides a YDB implementation for sqlx.DiffDriver.
 type diff struct {
@@ -116,7 +118,7 @@ func (d *diff) typeChanged(from *schema.Column, to *schema.Column) (bool, error)
 }
 
 // defaultChanged reports if the default value of a column was changed.
-func (d *diff) defaultChanged(from, to *schema.Column) bool {
+func (d *diff) defaultChanged(from *schema.Column, to *schema.Column) bool {
 	default1, ok1 := sqlx.DefaultValue(from)
 	default2, ok2 := sqlx.DefaultValue(to)
 	if ok1 != ok2 {
