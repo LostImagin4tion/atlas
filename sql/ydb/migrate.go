@@ -229,6 +229,16 @@ func (s *state) modifyTable(modify *schema.ModifyTable) error {
 		}
 	}
 
+	fmt.Printf("\n[PLAN CHANGES] drop indexes")
+	for _, op := range dropIndexOps {
+		fmt.Printf(" name=%v unique=%v,", op.I.Name, op.I.Unique)
+	}
+
+	fmt.Printf("\n[PLAN CHANGES] add indexes")
+	for _, op := range addIndexOps {
+		fmt.Printf(" name=%v unique=%v,", op.I.Name, op.I.Unique)
+	}
+
 	// Drop indexes first, then alter table, then add indexes
 	if err := s.dropIndexes(modify, modify.T, dropIndexOps...); err != nil {
 		return err
