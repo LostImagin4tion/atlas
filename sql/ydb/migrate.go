@@ -33,6 +33,7 @@ func (p *planApply) PlanChanges(
 	changes []schema.Change,
 	opts ...migrate.PlanOption,
 ) (*migrate.Plan, error) {
+	fmt.Printf("[PLAN CHANGES]")
 	state := &state{
 		conn: p.conn,
 		Plan: migrate.Plan{
@@ -228,6 +229,9 @@ func (s *state) modifyTable(modify *schema.ModifyTable) error {
 			return fmt.Errorf("ydb: unsupported table change: %T", change)
 		}
 	}
+
+	fmt.Printf("[PLAN CHANGES] drop indexes %+v", dropIndexOps)
+	fmt.Printf("[PLAN CHANGES] add indexes %+v", addIndexOps)
 
 	// Drop indexes first, then alter table, then add indexes
 	if err := s.dropIndexes(modify, modify.T, dropIndexOps...); err != nil {
