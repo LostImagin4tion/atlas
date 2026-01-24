@@ -49,6 +49,7 @@ func (p *planApply) PlanChanges(
 	if err := sqlx.SetReversible(&state.Plan); err != nil {
 		return nil, err
 	}
+	fmt.Printf("[PLAN CHANGES] name=%s, changes=%+v, opts=%+v\n", name, changes, opts)
 	return &state.Plan, nil
 }
 
@@ -60,6 +61,7 @@ func (p *planApply) ApplyChanges(
 	changes []schema.Change,
 	opts ...migrate.PlanOption,
 ) error {
+	fmt.Printf("[APPLY CHANGES] changes=%+v, opts=%+v\n", changes, opts)
 	return sqlx.ApplyChanges(ctx, changes, p, opts...)
 }
 
