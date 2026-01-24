@@ -317,33 +317,13 @@ func (s *state) alterTable(table *schema.Table, changes []schema.Change) error {
 func (s *state) addIndexes(src schema.Change, table *schema.Table, indexes ...*schema.AddIndex) error {
 	for _, add := range indexes {
 		index := add.I
-		indexAttrs := IndexAttributes{}
-		hasAttrs := sqlx.Has(index.Attrs, &indexAttrs)
 
 		builder := s.Build("ALTER TABLE").
 			Ident(s.tablePath(table)).
 			P("ADD INDEX").
-			Ident(index.Name).
-			P("GLOBAL")
+			Ident(index.Name)
 
-		if index.Unique {
-			builder.P("UNIQUE")
-		}
-
-		if hasAttrs && indexAttrs.Async {
-			builder.P("ASYNC")
-		} else {
-			builder.P("SYNC")
-		}
-
-		builder.P("ON")
-
-		s.indexParts(builder, index.Parts)
-
-		if hasAttrs && len(indexAttrs.CoverColumns) > 0 {
-			builder.P("COVER")
-			s.indexCoverColumns(builder, indexAttrs.CoverColumns)
-		}
+		s.buildIndexSpec(builder, index)
 
 		reverseOp := s.Build("ALTER TABLE").
 			Ident(s.tablePath(table)).
@@ -423,9 +403,36 @@ func (s *state) column(builder *sqlx.Builder, column *schema.Column) error {
 }
 
 // indexDef writes an inline index definition for CREATE TABLE.
-func (s *state) indexDef(builder *sqlx.Builder, idx *schema.Index) {
-	builder.P("INDEX").Ident(idx.Name).P("GLOBAL ON")
+func (s *state) indexDef(builder *sqlx.Builder, index *schema.Index) {
+	builder.P("INDEX").Ident(index.Name)
+	s.buildIndexSpec(builder, index)
+}
+
+// buildIndexSpec writes the common index specification:
+// GLOBAL [UNIQUE] [SYNC|ASYNC] ON (columns) [COVER (columns)].
+func (s *state) buildIndexSpec(builder *sqlx.Builder, idx *schema.Index) {
+	indexAttrs := IndexAttributes{}
+	hasAttrs := sqlx.Has(idx.Attrs, &indexAttrs)
+
+	builder.P("GLOBAL")
+
+	if idx.Unique {
+		builder.P("UNIQUE")
+	}
+
+	if hasAttrs && indexAttrs.Async {
+		builder.P("ASYNC")
+	} else {
+		builder.P("SYNC")
+	}
+
+	builder.P("ON")
 	s.indexParts(builder, idx.Parts)
+
+	if hasAttrs && len(indexAttrs.CoverColumns) > 0 {
+		builder.P("COVER")
+		s.indexCoverColumns(builder, indexAttrs.CoverColumns)
+	}
 }
 
 // indexParts writes the index parts (columns) to the builder.
